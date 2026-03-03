@@ -1,0 +1,213 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                    String                 @id @default(cuid())
+  campaigns             Campaign[]
+  collaborationProfiles CollaborationProfile[]
+}
+
+model Campaign {
+  id                   String                @id @default(cuid())
+  userId               String
+  user                 User                  @relation(fields: [userId], references: [id])
+  platform             String
+  adType               String?
+  metrics              String
+  feedback             String?
+  // Enum enforced via TS and API validation rather than native DB enum
+  status               String                @default("DRAFT")
+  decisions            DecisionHistory[]
+  workflowLogs         WorkflowLog[]
+  analysisRuns         AnalysisRun[]
+  performanceSnapshots PerformanceSnapshot[]
+  signalProfiles       SignalProfile[]
+  agentDebates         AgentDebate[]
+  recommendationLogs   RecommendationLog[]
+  forecastLogs         ForecastLog[]
+  creativeSuggestions  CreativeSuggestion[]
+  totalBudget          Float?
+  decisionCompletedAt  DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  version              Int                   @default(1)
+
+  @@index([userId])
+}
+
+model AnalysisRun {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+
+  fatigueScore    Float
+  confidenceScore Float
+  severityLevel   String
+  suggestedAction String
+
+  analysisOutput       String // JSON blob of AnalysisAgentResult
+  fatigueOutput        String // JSON blob of FatigueAgentResult
+  learningOutput       String // JSON blob of LearningAgentContext
+  decisionOutput       String // JSON blob of DecisionAgentResult
+  recommendationOutput String // JSON blob of StructuredRecommendation[]
+
+  createdAt DateTime @default(now())
+
+  @@index([campaignId])
+}
+
+model DecisionHistory {
+  id          String   @id @default(cuid())
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id])
+  actionTaken String
+  notes       String?
+  createdAt   DateTime @default(now())
+}
+
+model WorkflowLog {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  step       String
+  payload    String?
+  createdAt  DateTime @default(now())
+
+  @@index([campaignId])
+}
+
+model PerformanceSnapshot {
+  id          String   @id @default(cuid())
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  timestamp   DateTime @default(now())
+  ctr         Float
+  cpa         Float
+  impressions Int
+  spend       Float
+  clicks      Int
+  conversions Int
+
+  @@index([campaignId])
+  @@index([timestamp])
+}
+
+model SignalProfile {
+  id                    String   @id @default(cuid())
+  campaignId            String
+  campaign              Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ctrSlope              Float
+  cpaAcceleration       Float
+  impressionDecayRate   Float
+  spendEfficiencySlope  Float
+  engagementVolatility  Float
+  // Normalized fingerprints (Min-Max scaled to [-1, 1])
+  normalizedCtrSlope        Float?
+  normalizedCpaSlope        Float?
+  normalizedImpressionDecay Float?
+  normalizedBurnRate        Float?
+  normalizedVolatility      Float?
+  computedAt            DateTime @default(now())
+
+  @@index([campaignId])
+  @@index([computedAt])
+}
+
+model AgentDebate {
+  id                  String   @id @default(cuid())
+  campaignId          String
+  campaign            Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  analystHypotheses   Json
+  criticChallenge     Json
+  memoryRetrieval     Json
+  synthesizerDecision Json
+  debateLog           Json
+  completedAt         DateTime @default(now())
+
+  @@index([campaignId])
+  @@index([completedAt])
+}
+
+enum RecommendationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum OutcomeStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  UNKNOWN
+}
+
+model RecommendationLog {
+  id                      String               @id @default(cuid())
+  campaignId              String
+  campaign                Campaign             @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  interventionType        String
+  originalContent         String
+  recommendedContent      String
+  explainabilityReasoning String
+  status                  RecommendationStatus @default(PENDING)
+  outcomeStatus           OutcomeStatus        @default(PENDING)
+  userResponse            String?              // ACCEPTED | REJECTED | MODIFIED
+  outcomeScore            Float?               // performance delta (snapshot comparison)
+  scoringCompleted        Boolean              @default(false)
+  createdAt               DateTime             @default(now())
+
+  @@index([campaignId])
+  @@index([createdAt])
+}
+
+model CollaborationProfile {
+  id                      String   @id @default(cuid())
+  userId                  String   @unique
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  acceptRate              Float    @default(0)
+  rejectRate              Float    @default(0)
+  overrideRate            Float    @default(0)
+  disagreementSuccessRate Float    @default(0)
+  riskToleranceScore      Float    @default(0.5)
+  verbosityPreference     String   @default("DETAILED") // CONCISE | DETAILED
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ForecastLog {
+  id                           String    @id @default(uuid())
+  campaignId                   String
+  campaign                     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  predictedSpendExhaustionDate DateTime?
+  projectedBurnRate            Float?
+  statisticalConfidenceRisk    String    // "HIGH" | "MEDIUM" | "LOW"
+  budgetRiskLevel              String    // "HIGH" | "MEDIUM" | "LOW"
+  modelConfidence              String    // "HIGH" | "MEDIUM" | "LOW"
+  createdAt                    DateTime  @default(now())
+
+  @@index([campaignId])
+  @@index([createdAt])
+}
+
+model CreativeSuggestion {
+  id               String   @id @default(uuid())
+  campaignId       String
+  campaign         Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  primaryCause     String
+  suggestionType   String   // HEADLINE | CTA | REFRAME | STRUCTURAL
+  content          String
+  explanation      String
+  confidenceImpact Float
+  applied          Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  @@index([campaignId])
+}

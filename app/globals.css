@@ -24,3 +24,40 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Google Fonts */
+
+body {
+  background-color: #0f0f1e;
+  color: #f8fafc;
+  font-family: 'Outfit', sans-serif;
+  overflow-x: hidden;
+}
+
+/* Animations */
+@keyframes gradient-shift {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes slide-down {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fade-in-up {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-gradient-shift {
+  animation: gradient-shift 20s ease infinite;
+}
+
+.animate-slide-down {
+  animation: slide-down 0.6s ease;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.8s ease backwards;
+}
