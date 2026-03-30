@@ -1,63 +1,79 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f4f7fb;
+  --fg: #102033;
+  --surface: #ffffff;
+  --surface-muted: #eef3f9;
+  --border: #d6e0ec;
+  --brand: #0a66ff;
+  --brand-strong: #084ec6;
+  --accent: #0fbf9a;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --success: #15803d;
+  --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Mono", "Fira Code", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at 85% -10%, #dcecff 0, transparent 36%),
+    radial-gradient(circle at 0% 100%, #e6fff8 0, transparent 32%),
+    var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.surface-card {
+  background: color-mix(in srgb, var(--surface) 94%, #f3f8ff 6%);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 22px 48px -28px rgba(13, 34, 64, 0.45);
+}
+
+.top-gradient {
+  background: linear-gradient(100deg, #0a66ff 0%, #0d8ef7 55%, #12b6dc 100%);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.rise-in {
+  animation: rise-in 0.45s ease both;
 }
 
-/* Google Fonts */
-
-body {
-  background-color: #0f0f1e;
-  color: #f8fafc;
-  font-family: 'Outfit', sans-serif;
-  overflow-x: hidden;
-}
-
-/* Animations */
-@keyframes gradient-shift {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.8; }
-}
-
-@keyframes slide-down {
-  from { transform: translateY(-100%); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-@keyframes fade-in-up {
-  from { transform: translateY(30px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.animate-gradient-shift {
-  animation: gradient-shift 20s ease infinite;
-}
-
-.animate-slide-down {
-  animation: slide-down 0.6s ease;
-}
-
-.animate-fade-in-up {
-  animation: fade-in-up 0.8s ease backwards;
-}

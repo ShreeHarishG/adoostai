@@ -6,7 +6,10 @@ import {
   CheckCircle,
   AlertTriangle,
   XCircle,
-  Activity
+  Activity,
+  Sparkles,
+  Lightbulb,
+  ShieldCheck,
 } from 'lucide-react'
 import {
   Card,
@@ -17,7 +20,7 @@ import {
 } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { AnalysisResult, StructuredRecommendation } from '@/types'
+import { AnalysisResult } from '@/types'
 
 interface AnalysisResultsProps {
   result: AnalysisResult;
@@ -47,6 +50,32 @@ export function AnalysisResults({ result, onReset }: AnalysisResultsProps) {
 
   const diag = result.fatigueDiagnosis
   const severity = diag.severityLevel || 'LOW'
+  const primaryIssue = diag.primaryReasons[0]
+  const friendlyPrimary =
+    !primaryIssue || primaryIssue === 'NONE'
+      ? 'No major issues detected. Keep monitoring.'
+      : primaryIssue
+
+  const structured = result.structuredRecommendations ?? []
+  const hasStructured = structured.length > 0
+  const fallbackRecommendations = [
+    {
+      type: 'creative',
+      text: 'Try a fresh headline or visual to keep the ad feeling new.',
+      priority: 1,
+    },
+    {
+      type: 'budget',
+      text: 'Hold spend steady for 48 hours and watch CTR and CPA movement.',
+      priority: 2,
+    },
+    {
+      type: 'cta',
+      text: 'Clarify the next step with a stronger call‑to‑action.',
+      priority: 3,
+    },
+  ]
+  const recommendations = hasStructured ? structured : fallbackRecommendations
 
   return (
     <div className="space-y-6 text-gray-900">
@@ -56,7 +85,7 @@ export function AnalysisResults({ result, onReset }: AnalysisResultsProps) {
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div>
-              <CardTitle className="text-xl">Creative Fatigue Diagnosis</CardTitle>
+              <CardTitle className="text-xl">Campaign Health Summary</CardTitle>
               <CardDescription className="text-gray-600 mt-1 flex items-center gap-1">
                 <Activity className="h-4 w-4" /> Analyzed at {result.timestamp.toLocaleTimeString()}
               </CardDescription>
@@ -82,17 +111,17 @@ export function AnalysisResults({ result, onReset }: AnalysisResultsProps) {
             </div>
           </div>
 
-          <div className="p-4 bg-red-50/50 border border-red-100 rounded-xl">
-            <h4 className="text-sm font-semibold text-gray-900 mb-2">Primary Issue</h4>
+          <div className="p-4 bg-emerald-50/70 border border-emerald-100 rounded-xl">
+            <h4 className="text-sm font-semibold text-gray-900 mb-2">What this means</h4>
             <div className="flex gap-2 text-sm text-gray-700 items-center">
-              <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
-              <span className="font-medium">{diag.primaryReasons[0] || 'Unknown'}</span>
+              <ShieldCheck className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+              <span className="font-medium">{friendlyPrimary}</span>
             </div>
           </div>
 
           <div className="pt-4 border-t">
             <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-600 font-medium">Raw Fatigue Score</span>
+              <span className="text-gray-600 font-medium">Creative fatigue score</span>
               <span className="font-bold text-gray-900">
                 {diag.impactScore}/100
               </span>
@@ -112,47 +141,49 @@ export function AnalysisResults({ result, onReset }: AnalysisResultsProps) {
       {/* Recommendations */}
       <Card className="bg-white">
         <CardHeader>
-          <CardTitle>Prioritized Actions</CardTitle>
+          <CardTitle>Simple next steps</CardTitle>
           <CardDescription className="text-gray-600">
-            Intelligent recommendations based on workflow decision
+            Clear actions you can take right now.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {result.structuredRecommendations ? (
-            result.structuredRecommendations.map((rec, idx) => (
-              <div
-                key={idx}
-                className="p-4 border rounded-xl hover:border-gray-400 transition bg-white shadow-sm"
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex gap-3 items-center">
-                    <span className="h-6 w-6 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">
-                      {idx + 1}
-                    </span>
-                    <Badge variant="default" className="uppercase text-xs tracking-wider">
+          {recommendations.map((rec, idx) => (
+            <div
+              key={idx}
+              className="p-4 border rounded-xl hover:border-gray-400 transition bg-white shadow-sm"
+            >
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex gap-3 items-center">
+                  <span className="h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center text-xs font-bold text-blue-700">
+                    {idx + 1}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-blue-600" />
+                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
                       {rec.type}
-                    </Badge>
+                    </span>
                   </div>
-                  <Badge className={priorityStyles[rec.priority] || priorityStyles[3]}>
-                    Priority {rec.priority}
-                  </Badge>
                 </div>
-                <p className="text-gray-800 font-medium mt-3 ml-9">
-                  {rec.text}
-                </p>
+                <Badge className={priorityStyles[rec.priority] || priorityStyles[3]}>
+                  Priority {rec.priority}
+                </Badge>
               </div>
-            ))
-          ) : (
-            <div className="text-sm text-gray-500 p-4 border rounded-xl">No structured recommendations available for this version.</div>
-          )}
+              <p className="text-gray-800 font-medium mt-3 ml-11">
+                {rec.text}
+              </p>
+            </div>
+          ))}
         </CardContent>
       </Card>
 
       {/* Buttons */}
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-3">
         <Button variant="outline" className="flex-1 py-6 border-gray-300" onClick={onReset}>
           Analyze Another Ad
+        </Button>
+        <Button className="flex-1 py-6 bg-gray-900 hover:bg-gray-800 text-white">
+          <Lightbulb className="h-4 w-4 mr-2" /> Get Creative Ideas
         </Button>
       </div>
     </div>

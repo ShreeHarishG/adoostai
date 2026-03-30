@@ -1,35 +1,32 @@
-'use client'
+﻿'use client'
 
-import { useState, useEffect } from 'react'
-import { Sparkles, Loader2, ArrowRight, CheckCircle, XCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { ArrowRight, CheckCircle2, Loader2, Sparkles, XCircle } from 'lucide-react'
 import { AdInputForm } from '@/components/features/ad-analysis/AdInputForm'
-import { PerformanceMetricsForm } from '@/components/features/ad-analysis/PerformanceMetricsForm'
-import { FeedbackForm } from '@/components/features/ad-analysis/FeedbackForm'
 import { AnalysisResults } from '@/components/features/ad-analysis/AnalysisResults'
-import { Badge } from '@/components/ui/Badge'
-import {
-  AdInput,
-  PerformanceMetrics,
-  FeedbackData,
-  AnalysisResult,
-  CampaignStatus,
-} from '@/types'
+import { FeedbackForm } from '@/components/features/ad-analysis/FeedbackForm'
+import { PerformanceMetricsForm } from '@/components/features/ad-analysis/PerformanceMetricsForm'
+import { AdInput, AnalysisResult, CampaignStatus, FeedbackData, PerformanceMetrics } from '@/types'
 
 type Step = 'ad-input' | 'metrics' | 'feedback' | 'results'
+type ExtendedCampaignStatus = CampaignStatus | 'AWAITING_USER_ACTION'
+
+const stepOrder: Step[] = ['ad-input', 'metrics', 'feedback', 'results']
 
 export default function Home() {
   const [currentStep, setCurrentStep] = useState<Step>('ad-input')
   const [adInput, setAdInput] = useState<AdInput | null>(null)
   const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null)
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
-
   const [campaignId, setCampaignId] = useState<string | null>(null)
-  const [workflowStatus, setWorkflowStatus] = useState<CampaignStatus>('DRAFT')
+  const [workflowStatus, setWorkflowStatus] = useState<ExtendedCampaignStatus>('DRAFT')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // Polling Effect for Async Workflow Pipeline
+  const stepIndex = stepOrder.indexOf(currentStep) + 1
+
   useEffect(() => {
-    let interval: NodeJS.Timeout
+    let interval: NodeJS.Timeout | null = null
 
     const checkWorkflowStatus = async () => {
       if (!campaignId || workflowStatus !== 'ANALYZING') return
@@ -45,26 +42,27 @@ export default function Home() {
           const run = campaign.latestRun
           if (!run) throw new Error('No analysis run found')
 
-          // Map AnalysisRun response to AnalysisResult props
           const recommendations = JSON.parse(run.recommendationOutput)
           const fatigueOutput = JSON.parse(run.fatigueOutput)
 
           setAnalysisResult({
             adId: campaign.id,
             timestamp: new Date(run.createdAt),
-            summary: 'Workflow Engine Completed Analysis',
+            summary: 'Workflow Engine completed analysis',
             fatigueDiagnosis: {
-              level: 'moderate', // Deprecated in favor of severityLevel
+              level: 'moderate',
               severityLevel: run.severityLevel,
               impactScore: run.fatigueScore || 0,
               confidence: run.confidenceScore || 0,
               primaryReasons: [fatigueOutput.primaryIssue || 'Unknown'],
             },
-            recommendations: [], // Deprecated string support
+            recommendations: [],
             structuredRecommendations: recommendations,
           })
           setCurrentStep('results')
-        } else if (campaign.status === 'FAILED') {
+        }
+
+        if (campaign.status === 'FAILED') {
           setErrorMessage('The workflow engine encountered a critical error during analysis.')
         }
       } catch (err) {
@@ -73,7 +71,7 @@ export default function Home() {
     }
 
     if (workflowStatus === 'ANALYZING') {
-      interval = setInterval(checkWorkflowStatus, 2000) // Poll every 2 seconds
+      interval = setInterval(checkWorkflowStatus, 2000)
     }
 
     return () => {
@@ -81,12 +79,8 @@ export default function Home() {
     }
   }, [campaignId, workflowStatus])
 
-
-  const handleAdInputSubmit = (data: typeof adInput) => {
+  const handleAdInputSubmit = (data: AdInput) => {
     setAdInput(data)
-
-    // Auto-fill some mocked realistic data to save user typings 
-    // in this prototype version
     setMetrics({
       impressions: 42500,
       clicks: 850,
@@ -98,9 +92,8 @@ export default function Home() {
       cpa: 52.08,
       roas: 0.96,
       frequency: 2.1,
-      durationDays: 14
+      durationDays: 14,
     })
-
     setCurrentStep('metrics')
   }
 
@@ -116,7 +109,6 @@ export default function Home() {
     setErrorMessage(null)
 
     try {
-      // 1. Create a draft campaign
       const resCampaign = await fetch('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -124,20 +116,17 @@ export default function Home() {
           platform: adInput.platform,
           adType: 'Standard Ad',
           metrics,
-          feedback
-        })
+          feedback,
+        }),
       })
       const campaign = await resCampaign.json()
       setCampaignId(campaign.id)
 
-      // 2. Fire the async analysis workflow queue
       await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignId: campaign.id })
+        body: JSON.stringify({ campaignId: campaign.id }),
       })
-
-      // UI now waits for the useEffect polling to catch 'DECISION_READY'
     } catch (error) {
       console.error('Failed to initiate workflow:', error)
       setWorkflowStatus('FAILED')
@@ -147,6 +136,7 @@ export default function Home() {
 
   const handleDecision = async (decision: string) => {
     if (!campaignId) return
+
     try {
       await fetch('/api/decision', {
         method: 'POST',
@@ -154,10 +144,9 @@ export default function Home() {
         body: JSON.stringify({
           campaignId,
           actionTaken: decision,
-          notes: 'User interacted via workflow UI'
-        })
+          notes: 'User interacted via workflow UI',
+        }),
       })
-      // Update local state to hide buttons after decision
       setWorkflowStatus('COMPLETED')
     } catch (e) {
       console.error('Failed to track decision', e)
@@ -174,165 +163,126 @@ export default function Home() {
     setErrorMessage(null)
   }
 
-  const getStepNumber = (step: Step): number => {
-    const steps: Step[] = ['ad-input', 'metrics', 'feedback', 'results']
-    return steps.indexOf(step) + 1
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50/50">
-      {/* Header */}
-      <header className="border-b bg-white sticky top-0 z-10 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-green-600" />
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">AdBoostAI</h1>
-          </div>
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            Workflow Engine Active
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6">
+      <section className="rise-in grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+        <div className="surface-card top-gradient p-8 text-white">
+          <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em]">
+            <Sparkles className="h-3.5 w-3.5" /> Simple Campaign Checkup
+          </p>
+          <h1 className="max-w-2xl text-3xl font-bold leading-tight sm:text-4xl">
+            Clear answers about what to fix, without marketing jargon.
+          </h1>
+          <p className="mt-4 max-w-2xl text-sm text-white/90 sm:text-base">
+            We translate your ad results into plain steps anyone can follow.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link href="/dashboard" className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-900">
+              Open Dashboard
+            </Link>
+            <a href="#analysis-workflow" className="rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold text-white">
+              Start Analysis
+            </a>
           </div>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-4 py-8">
-        {/* Progress Indicator */}
-        {currentStep !== 'results' && (
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">
-                Step {getStepNumber(currentStep)} of 4
-              </span>
-              <span className="text-sm text-gray-500">
-                {currentStep === 'ad-input' && 'Ad Information'}
-                {currentStep === 'metrics' && 'Performance Metrics'}
-                {currentStep === 'feedback' && 'User Feedback'}
-              </span>
-            </div>
-
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                style={{
-                  width: `${(getStepNumber(currentStep) / 4) * 100}%`,
-                }}
-              />
-            </div>
+        <div className="surface-card p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Steps</p>
+          <h2 className="mt-2 text-xl font-bold text-slate-900">What happens next</h2>
+          <div className="mt-5 space-y-3">
+            {stepOrder.map((step, i) => {
+              const completed = i < stepIndex - 1 || (currentStep === 'results' && i === stepOrder.length - 1)
+              const active = step === currentStep
+              return (
+                <div key={step} className="flex items-center gap-3">
+                  <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${completed ? 'bg-emerald-100 text-emerald-700' : active ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+                    {i + 1}
+                  </span>
+                  <span className={`text-sm font-medium ${active ? 'text-slate-900' : 'text-slate-600'}`}>
+                    {step === 'ad-input' && 'Tell us about your ad'}
+                    {step === 'metrics' && 'Add basic results'}
+                    {step === 'feedback' && 'Optional customer feedback'}
+                    {step === 'results' && 'Get simple next steps'}
+                  </span>
+                </div>
+              )
+            })}
           </div>
-        )}
+        </div>
+      </section>
 
-        {/* Hero Section */}
-        {currentStep === 'ad-input' && (
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">
-              Intelligent Campaign Diagnosis
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Submit your ad telemetry. Our multi-agent workflow will diagnose fatigue, score confidence, and generate structured decisions.
-            </p>
+      <section id="analysis-workflow" className="rise-in surface-card p-6 sm:p-8">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Step {stepIndex} of 4</p>
+            <h2 className="mt-1 text-2xl font-bold text-slate-900">Campaign Checkup</h2>
           </div>
-        )}
-
-        {/* Step Components */}
-        <div className="max-w-3xl mx-auto relative">
-
-          {/* Global Loading / Polling Overlay */}
           {workflowStatus === 'ANALYZING' && (
-            <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center rounded-2xl border-2 border-green-100 shadow-xl min-h-[400px]">
-              <div className="relative mb-6">
-                <div className="absolute inset-0 bg-green-200 rounded-full blur-xl animate-pulse" />
-                <div className="bg-white p-4 rounded-full relative shadow-md">
-                  <Loader2 className="h-10 w-10 text-green-600 animate-spin" />
-                </div>
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Workflow Engine Running</h3>
-              <div className="flex flex-col gap-2 w-64 text-sm font-medium text-gray-500">
-                <div className="flex items-center gap-2 text-green-700">
-                  <CheckCircle className="h-4 w-4" /> <span>Analysis Agent complete</span>
-                </div>
-                <div className="flex items-center gap-2 animate-pulse text-gray-900">
-                  <Loader2 className="h-4 w-4 animate-spin" /> <span>Decision Engine processing...</span>
-                </div>
-                <div className="flex items-center gap-2 opacity-50">
-                  <div className="h-4 w-4 border-2 rounded-full border-gray-300" /> <span>Generating recommendations</span>
-                </div>
+            <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Running
+            </span>
+          )}
+        </div>
+
+        <div className="relative">
+          {workflowStatus === 'ANALYZING' && (
+            <div className="absolute inset-0 z-20 flex min-h-[420px] items-center justify-center rounded-2xl bg-white/90 backdrop-blur-sm">
+              <div className="text-center">
+                <Loader2 className="mx-auto h-8 w-8 animate-spin text-blue-600" />
+                <p className="mt-3 text-sm font-semibold text-slate-900">We are analyzing your results</p>
+                <p className="mt-1 text-xs text-slate-500">You will get simple steps to improve.</p>
               </div>
             </div>
           )}
 
-          {/* Global Error Overlay */}
           {workflowStatus === 'FAILED' && (
-            <div className="absolute inset-0 bg-red-50/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center rounded-2xl border-2 border-red-200 shadow-lg min-h-[400px] p-8 text-center">
-              <XCircle className="h-16 w-16 text-red-500 mb-4" />
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Workflow Failed</h3>
-              <p className="text-red-700 mb-6">{errorMessage}</p>
-              <button onClick={handleReset} className="px-6 py-2 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-colors font-medium">Try Again</button>
+            <div className="absolute inset-0 z-20 flex min-h-[420px] items-center justify-center rounded-2xl bg-red-50/95 backdrop-blur-sm">
+              <div className="max-w-md px-6 text-center">
+                <XCircle className="mx-auto h-9 w-9 text-red-600" />
+                <p className="mt-3 text-sm font-semibold text-slate-900">Workflow failed</p>
+                <p className="mt-1 text-xs text-red-700">{errorMessage}</p>
+                <button onClick={handleReset} className="mt-4 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700">
+                  Reset
+                </button>
+              </div>
             </div>
           )}
 
-          {currentStep === 'ad-input' && (
-            <AdInputForm onSubmit={handleAdInputSubmit} />
-          )}
-
-          {currentStep === 'metrics' && (
-            <PerformanceMetricsForm
-              onSubmit={handleMetricsSubmit}
-              onBack={() => setCurrentStep('ad-input')}
-            />
-          )}
-
+          {currentStep === 'ad-input' && <AdInputForm onSubmit={handleAdInputSubmit} />}
+          {currentStep === 'metrics' && <PerformanceMetricsForm onSubmit={handleMetricsSubmit} onBack={() => setCurrentStep('ad-input')} />}
           {currentStep === 'feedback' && workflowStatus !== 'ANALYZING' && workflowStatus !== 'FAILED' && (
-            <FeedbackForm
-              onSubmit={handleFeedbackSubmit}
-              onBack={() => setCurrentStep('metrics')}
-              onSkip={() => handleFeedbackSubmit(undefined)}
-            />
+            <FeedbackForm onSubmit={handleFeedbackSubmit} onBack={() => setCurrentStep('metrics')} onSkip={() => handleFeedbackSubmit(undefined)} />
           )}
 
           {currentStep === 'results' && analysisResult && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-6">
               <AnalysisResults result={analysisResult} onReset={handleReset} />
 
-              {/* Decision Flow UI */}
               {workflowStatus !== 'COMPLETED' ? (
-                <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-blue-100 p-6 rounded-2xl shadow-sm">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div>
-                      <h3 className="font-bold text-gray-900 mb-1 flex items-center gap-2">
-                        Human Approval Required <Badge variant="info" className="bg-blue-100 text-blue-700">Step 3 Prep</Badge>
-                      </h3>
-                      <p className="text-sm text-gray-600 max-w-sm">Review the top-level suggested action from the Decision Engine. Log your decision to train the automation layer.</p>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                      <button
-                        onClick={() => handleDecision('pause_ad')}
-                        className="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm"
-                      >
-                        Pause Ad
-                      </button>
-                      <button
-                        onClick={() => handleDecision('refresh_creative')}
-                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-200"
-                      >
-                        Refresh Creative <ArrowRight className="h-4 w-4" />
-                      </button>
-                    </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <p className="text-sm font-semibold text-slate-900">Record your decision</p>
+                  <p className="mt-1 text-xs text-slate-500">This feedback is used to train collaboration and recommendation behavior.</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button onClick={() => handleDecision('pause_ad')} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                      Pause Campaign
+                    </button>
+                    <button onClick={() => handleDecision('refresh_creative')} className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white">
+                      Refresh Creative <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
               ) : (
-                <div className="bg-green-50 border border-green-100 p-6 rounded-2xl flex flex-col items-center justify-center text-center">
-                  <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center mb-3">
-                    <CheckCircle className="h-6 w-6 text-green-600" />
-                  </div>
-                  <h3 className="font-bold text-gray-900 mb-1">Decision Recorded</h3>
-                  <p className="text-sm text-gray-600">The workflow history has been updated for Step 3 learning pipelines.</p>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                  <p className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                    <CheckCircle2 className="h-4 w-4" /> Decision recorded successfully
+                  </p>
                 </div>
               )}
             </div>
           )}
         </div>
-      </main>
-    </div>
+      </section>
+    </main>
   )
 }
+

@@ -1,67 +1,95 @@
-'use client'
+﻿'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import {
-    Sparkles,
-    Loader2,
-    AlertTriangle,
-    ArrowLeft,
-    TrendingUp,
-    TrendingDown,
-    Brain,
-    Layers,
-    Shield,
-    ChevronRight,
-    Target,
-    BarChart3,
-    Eye,
-    CheckCircle,
-    DollarSign,
-    Activity,
-    Users,
-    ThumbsUp,
-    ThumbsDown,
-    Edit3,
-    Lightbulb,
-    CheckCircle2,
-    Check
+  AlertTriangle,
+  ArrowLeft,
+  Check,
+  Clock3,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+  TriangleAlert,
 } from 'lucide-react'
 import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    Filler,
-    Tooltip as ChartTooltip,
-    Legend,
-} from 'chart.js'
-import { Line } from 'react-chartjs-2'
-import { useParams } from 'next/navigation'
-import Link from 'next/link'
-
-// Register Chart.js components
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, ChartTooltip, Legend)
-
-// ─── Types ──────────────────────────────────────────
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 
 interface FatigueTrendPoint {
-    runIndex: number
-    fatigueScore: number
-    confidenceScore: number
-    severityLevel: string
-    suggestedAction: string
-    timestamp: string
+  runIndex: number
+  fatigueScore: number
+  confidenceScore: number
+  severityLevel: string
+  suggestedAction: string
+  timestamp: string
 }
 
 interface AgentTimelineEntry {
-    step: string
-    timestamp: string
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    payload: Record<string, any>
+  step: string
+  timestamp: string
+  payload: Record<string, unknown>
 }
 
-interface LearningBias {
+interface ForecastData {
+  predictedSpendExhaustionDate: string | null
+  projectedBurnRate: number | null
+  statisticalConfidenceRisk: string
+  budgetRiskLevel: string
+  modelConfidence: string
+  createdAt: string
+}
+
+interface SimilarCampaignData {
+  campaignId: string
+  similarityScore: number
+  finalDecision: string
+  outcomeStatus: string
+}
+
+interface CreativeSuggestion {
+  id: string
+  primaryCause: string
+  suggestionType: 'HEADLINE' | 'CTA' | 'REFRAME' | 'STRUCTURAL'
+  content: string
+  explanation: string
+  confidenceImpact: number
+  applied: boolean
+  createdAt: string
+}
+
+interface IntelligenceData {
+  campaign: {
+    id: string
+    platform: string
+    adType: string | null
+    status: string
+    createdAt: string
+    updatedAt: string
+  }
+  snapshotSeries: {
+    date: string
+    impressions: number
+    clicks: number
+    spend: number
+    conversions: number
+    ctr: number
+    reach?: number | null
+    frequency?: number | null
+  }[]
+  fatigueTrend: FatigueTrendPoint[]
+  hasFatigueAcceleration: boolean
+  agentTimeline: AgentTimelineEntry[]
+  learningBias: {
     totalDecisions: number
     pauseCount: number
     refreshCount: number
@@ -70,1075 +98,551 @@ interface LearningBias {
     overrideRate: number
     systemPauseCount: number
     userIgnoredPause: number
-}
-
-interface DecisionConsistency {
+  }
+  decisionConsistency: {
     score: number
     totalDecisions: number
     alignedCount: number
     overrideCount: number
-}
-
-interface ForecastData {
-    predictedSpendExhaustionDate: string | null
-    projectedBurnRate: number | null
-    statisticalConfidenceRisk: string
-    budgetRiskLevel: string
-    modelConfidence: string
+  }
+  latestRun: {
+    fatigueScore: number
+    confidenceScore: number
+    severityLevel: string
+    suggestedAction: string
+    recommendationOutput?: string
     createdAt: string
+  } | null
+  latestForecast: ForecastData | null
+  similarCampaigns: SimilarCampaignData[]
+  creativeSuggestions: CreativeSuggestion[]
+  creativeContent: {
+    id: string
+    caption: string
+    hashtags: string[]
+    mediaType: string
+    thumbnailUrl: string | null
+    createdAt: string
+  } | null
+  collaborationProfile: {
+    riskToleranceScore: number
+    disagreementSuccessRate: number
+    acceptRate: number
+    rejectRate: number
+    overrideRate: number
+    verbosityPreference: string
+  } | null
+  latestRecommendation: {
+    id: string
+    interventionType: string
+    recommendedContent: string
+    status: string
+    userResponse: string | null
+  } | null
 }
 
-interface SimilarCampaignData {
-    campaignId: string
-    similarityScore: number
-    finalDecision: string
-    outcomeStatus: string
+interface SimulationData {
+  scenario: string
+  assumptions: {
+    budget: number
+    spent: number
+    remaining: number
+    burnRate: number
+    daysToExhaustion: number | null
+    exhaustionDate: string | null
+    budgetRisk: string
+  }
+  delta: {
+    burnRateChangePct: number
+    runwayChangeDays: number | null
+    riskShift: string
+  }
 }
 
-interface IntelligenceData {
-    campaign: {
-        id: string
-        platform: string
-        adType: string | null
-        status: string
-        createdAt: string
-        updatedAt: string
-    }
-    fatigueTrend: FatigueTrendPoint[]
-    hasFatigueAcceleration: boolean
-    agentTimeline: AgentTimelineEntry[]
-    learningBias: LearningBias
-    decisionConsistency: DecisionConsistency
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    latestRun: any
-    latestForecast: ForecastData | null
-    similarCampaigns: SimilarCampaignData[]
-    creativeSuggestions: {
-        id: string
-        primaryCause: string
-        suggestionType: 'HEADLINE' | 'CTA' | 'REFRAME' | 'STRUCTURAL'
-        content: string
-        explanation: string
-        confidenceImpact: number
-        applied: boolean
-        createdAt: string
-    }[]
-    collaborationProfile: {
-        riskToleranceScore: number
-        disagreementSuccessRate: number
-        acceptRate: number
-        rejectRate: number
-        overrideRate: number
-        verbosityPreference: string
-    } | null
-    latestRecommendation: {
-        id: string
-        interventionType: string
-        recommendedContent: string
-        status: string
-        userResponse: string | null
-    } | null
+interface RankedAction {
+  priority: number
+  title: string
+  reason: string
 }
 
-// ─── Agent Progress Types ───────────────────────────
+function riskToScore(level?: string): number {
+  if (!level) return 50
+  if (level === 'HIGH' || level === 'CRITICAL') return 85
+  if (level === 'MEDIUM') return 55
+  return 25
+}
 
-const AGENT_STEPS = [
-    'ANALYSIS_AGENT',
-    'FATIGUE_AGENT',
-    'LEARNING_AGENT',
-    'SIGNAL_NORMALIZE',
-    'FORECAST_ENGINE',
-    'MEMORY_ENGINE',
-    'COLLABORATION_PROFILE',
-    'ANALYST',
-    'CRITIC',
-    'MEMORY',
-    'SYNTHESIZER',
-    'CREATIVE_ENGINE',
-] as const
+function getHealthScore(data: IntelligenceData): number {
+  const signalHealth = data.latestRun ? 100 - Math.min(100, data.latestRun.fatigueScore) : 45
+  const forecastHealth = data.latestForecast ? 100 - riskToScore(data.latestForecast.budgetRiskLevel) : 55
+  const dataSufficiency = Math.min(100, data.fatigueTrend.length * 20)
+  const decisionConfidence = data.latestRun?.confidenceScore ?? 45
+  return Math.round(signalHealth * 0.35 + forecastHealth * 0.25 + dataSufficiency * 0.2 + decisionConfidence * 0.2)
+}
 
-// ─── Helpers ────────────────────────────────────────
+function getHealthTone(score: number): string {
+  if (score >= 75) return 'text-emerald-700 bg-emerald-100 border-emerald-200'
+  if (score >= 50) return 'text-amber-700 bg-amber-100 border-amber-200'
+  return 'text-red-700 bg-red-100 border-red-200'
+}
 
-function formatTime(ts: string): string {
-    return new Date(ts).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
+function actionFromSuggestion(action?: string): string {
+  if (!action) return 'Continue and monitor'
+  if (action === 'PAUSE') return 'Pause campaign spend'
+  if (action === 'REFRESH') return 'Refresh creative assets'
+  if (action === 'TEST') return 'Run A/B variant test'
+  return 'Continue and monitor'
+}
+
+function buildTimeline(data: IntelligenceData): { title: string; date: string; detail: string }[] {
+  const events: { title: string; date: string; detail: string }[] = []
+
+  if (data.fatigueTrend.length > 0) {
+    const first = data.fatigueTrend[0]
+    events.push({
+      title: 'Initial signal observed',
+      date: new Date(first.timestamp).toLocaleDateString('en-US'),
+      detail: `Fatigue score ${Math.round(first.fatigueScore)} with action ${actionFromSuggestion(first.suggestedAction)}.`,
     })
+  }
+
+  if (data.fatigueTrend.length > 1) {
+    const recent = data.fatigueTrend[data.fatigueTrend.length - 1]
+    events.push({
+      title: 'Trend update',
+      date: new Date(recent.timestamp).toLocaleDateString('en-US'),
+      detail: `Current fatigue ${Math.round(recent.fatigueScore)} and confidence ${Math.round(recent.confidenceScore)}%.`,
+    })
+  }
+
+  if (data.latestForecast?.budgetRiskLevel) {
+    events.push({
+      title: 'Forecast risk evaluated',
+      date: new Date(data.latestForecast.createdAt).toLocaleDateString('en-US'),
+      detail: `Budget risk marked as ${data.latestForecast.budgetRiskLevel}.`,
+    })
+  }
+
+  const criticalAgentStep = data.agentTimeline.find((entry) => entry.step === 'SYNTHESIZER' || entry.step === 'CRITIC')
+  if (criticalAgentStep) {
+    events.push({
+      title: 'Reasoning finalized',
+      date: new Date(criticalAgentStep.timestamp).toLocaleDateString('en-US'),
+      detail: `Multi-agent synthesis completed at ${criticalAgentStep.step}.`,
+    })
+  }
+
+  return events
 }
 
-const AGENT_META: Record<string, { label: string; color: string; icon: string; bgColor: string }> = {
-    ANALYSIS_AGENT: { label: 'Analysis Agent', color: 'text-cyan-400', icon: '🔍', bgColor: 'bg-cyan-500/10' },
-    FATIGUE_AGENT: { label: 'Fatigue Agent', color: 'text-amber-400', icon: '😴', bgColor: 'bg-amber-500/10' },
-    LEARNING_AGENT: { label: 'Learning Agent', color: 'text-purple-400', icon: '📚', bgColor: 'bg-purple-500/10' },
-    SIGNAL_NORMALIZE: { label: 'Signal Normalize', color: 'text-teal-400', icon: '📊', bgColor: 'bg-teal-500/10' },
-    FORECAST_ENGINE: { label: 'Forecast Engine', color: 'text-indigo-400', icon: '💰', bgColor: 'bg-indigo-500/10' },
-    MEMORY_ENGINE: { label: 'Memory Search', color: 'text-orange-400', icon: '🔎', bgColor: 'bg-orange-500/10' },
-    COLLABORATION_PROFILE: { label: 'Collaboration', color: 'text-pink-400', icon: '🤝', bgColor: 'bg-pink-500/10' },
-    ANALYST: { label: 'Analyst (R1)', color: 'text-sky-400', icon: '🧠', bgColor: 'bg-sky-500/10' },
-    CRITIC: { label: 'Critic (R2)', color: 'text-rose-400', icon: '⚔️', bgColor: 'bg-rose-500/10' },
-    MEMORY: { label: 'Memory (R2.5)', color: 'text-violet-400', icon: '🗂️', bgColor: 'bg-violet-500/10' },
-    SYNTHESIZER: { label: 'Synthesizer (R3)', color: 'text-emerald-400', icon: '✨', bgColor: 'bg-emerald-500/10' },
-    CREATIVE_ENGINE: { label: 'Creative Engine', color: 'text-fuchsia-400', icon: '💡', bgColor: 'bg-fuchsia-500/10' },
-    WORKFLOW_ERROR: { label: 'Workflow Error', color: 'text-red-400', icon: '❌', bgColor: 'bg-red-500/10' },
+function rankActions(data: IntelligenceData): RankedAction[] {
+  const ranked: RankedAction[] = []
+  const suggestions = Array.isArray(data.creativeSuggestions) ? data.creativeSuggestions : []
+
+  if (data.latestRun) {
+    ranked.push({
+      priority: 1,
+      title: actionFromSuggestion(data.latestRun.suggestedAction),
+      reason: `Primary system decision with ${Math.round(data.latestRun.confidenceScore)}% confidence.`,
+    })
+  }
+
+  if (data.latestForecast && data.latestForecast.budgetRiskLevel !== 'LOW') {
+    ranked.push({
+      priority: ranked.length + 1,
+      title: 'Rebalance spend pace',
+      reason: `Forecast indicates ${data.latestForecast.budgetRiskLevel.toLowerCase()} budget risk.`,
+    })
+  }
+
+  const firstCreative = [...suggestions]
+    .sort((a, b) => b.confidenceImpact - a.confidenceImpact)
+    .find((item) => !item.applied)
+
+  if (firstCreative) {
+    ranked.push({
+      priority: ranked.length + 1,
+      title: `Apply ${firstCreative.suggestionType.toLowerCase()} improvement`,
+      reason: firstCreative.content,
+    })
+  }
+
+  if (ranked.length === 0) {
+    ranked.push({
+      priority: 1,
+      title: 'Collect more data',
+      reason: 'No confident recommendation yet. Run additional analysis cycles.',
+    })
+  }
+
+  return ranked.slice(0, 3)
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function summarizePayload(step: string, payload: Record<string, any>): string {
-    switch (step) {
-        case 'ANALYSIS_AGENT':
-            return Object.entries(payload)
-                .map(([k, v]) => `${k}=${String(v)}`)
-                .join(', ')
-        case 'FATIGUE_AGENT':
-            return `score=${payload.fatigueScore}, issue="${payload.primaryIssue}"`
-        case 'LEARNING_AGENT':
-            return `bias ${payload.suggestedConfidenceAdjustment >= 0 ? '+' : ''}${payload.suggestedConfidenceAdjustment}%, overrideRate=${Math.round((payload.historicalOverrideRate || 0) * 100)}%`
-        case 'DECISION_AGENT':
-            return `${payload.suggestedAction} (severity=${payload.severityLevel}, confidence=${payload.confidenceScore}%)`
-        case 'RECOMMENDATION_AGENT':
-            if (Array.isArray(payload)) {
-                return payload.map(r => r.text?.slice(0, 50) + '...').join(' | ')
-            }
-            return JSON.stringify(payload).slice(0, 80)
-        case 'FORECAST_ENGINE':
-            if (payload.status === 'unavailable') return 'Forecast service unavailable'
-            return `burnRate=$${payload.projectedBurnRate ?? '?'}/day, budgetRisk=${payload.budgetRiskLevel ?? '?'}`
-        case 'ANALYST':
-            if (Array.isArray(payload)) {
-                return payload.map(h => `${h.cause}(${(h.confidence * 100).toFixed(0)}%)`).join(', ')
-            }
-            return JSON.stringify(payload).slice(0, 80)
-        case 'CRITIC':
-            if (Array.isArray(payload)) {
-                return payload.map(c => `${c.hypothesis}→${(c.revisedConfidence * 100).toFixed(0)}%`).join(', ')
-            }
-            return JSON.stringify(payload).slice(0, 80)
-        case 'SYNTHESIZER':
-            return `${payload.recommendedAction} (cause=${payload.primaryCause}, conf=${(payload.confidence * 100).toFixed(0)}%, sev=${payload.severity})`
-        case 'MEMORY':
-            return `${payload.similarPatternCount} patterns, adj=${payload.confidenceAdjustment >= 0 ? '+' : ''}${(payload.confidenceAdjustment * 100).toFixed(0)}%`
-        case 'SIGNAL_NORMALIZE':
-            return 'Signal fingerprints normalized (Min-Max [-1,1])'
-        case 'MEMORY_ENGINE':
-            if (payload.similarCampaigns?.length > 0) {
-                return payload.similarCampaigns.map((s: SimilarCampaignData) => `${s.campaignId.slice(0, 8)}(${(1 - s.similarityScore).toFixed(0)}%)`).join(', ')
-            }
-            return 'No similar campaigns found (cold start or insufficient data)'
-        case 'COLLABORATION_PROFILE':
-            if (payload.status === 'none') return 'No collaboration profile yet'
-            return `risk=${(payload.riskToleranceScore * 100).toFixed(0)}%, verbosity=${payload.verbosityPreference}`
-        case 'CREATIVE_ENGINE':
-            return `Generated ${payload.suggestionsGenerated || 0} actionable suggestions for: ${payload.cause}`
-        default:
-            return JSON.stringify(payload).slice(0, 100)
+function formatDate(date?: string | null): string {
+  if (!date) return 'N/A'
+  return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+export default function CampaignDetailPage() {
+  const params = useParams<{ id: string }>()
+  const campaignId = params.id
+
+  const [data, setData] = useState<IntelligenceData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [simulation, setSimulation] = useState<SimulationData | null>(null)
+  const [simLoading, setSimLoading] = useState(false)
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await fetch(`/api/campaigns/${campaignId}/intelligence`)
+      if (!res.ok) throw new Error('Failed to fetch campaign intelligence')
+      const json = await res.json()
+      setData(json)
+      setError(null)
+    } catch (err) {
+      setError('Failed to load campaign intelligence')
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
-}
+  }, [campaignId])
 
-// ─── Consistency Ring ──────────────────────────────
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
-function ConsistencyRing({ score }: { score: number }) {
-    const radius = 56
-    const circumference = 2 * Math.PI * radius
-    const offset = circumference - (score / 100) * circumference
-    const color = score >= 80 ? '#34d399' : score >= 50 ? '#fbbf24' : '#f87171'
+  const healthScore = useMemo(() => (data ? getHealthScore(data) : 0), [data])
+  const timeline = useMemo(() => (data ? buildTimeline(data) : []), [data])
+  const rankedActions = useMemo(() => (data ? rankActions(data) : []), [data])
+  const creativeSuggestions = useMemo(
+    () => (data && Array.isArray(data.creativeSuggestions) ? data.creativeSuggestions : []),
+    [data],
+  )
+  const similarCampaigns = useMemo(
+    () => (data && Array.isArray(data.similarCampaigns) ? data.similarCampaigns : []),
+    [data],
+  )
+  const chartData = useMemo(() => {
+    if (!data) return []
+    return data.snapshotSeries.map((point) => ({
+      ...point,
+      label: new Date(point.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    }))
+  }, [data])
 
+  const runSimulation = async (scenario: string) => {
+    try {
+      setSimLoading(true)
+      const res = await fetch(`/api/campaigns/${campaignId}/simulate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scenario }),
+      })
+      if (!res.ok) throw new Error('Simulation failed')
+      const json = await res.json()
+      setSimulation(json)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSimLoading(false)
+    }
+  }
+
+  const submitDecision = async (userResponse: 'ACCEPTED' | 'REJECTED' | 'MODIFIED') => {
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userResponse }),
+      })
+      if (!res.ok) throw new Error('Failed decision submit')
+      fetchData()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const markSuggestionApplied = async (suggestionId: string) => {
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/suggestions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suggestionId }),
+      })
+      if (!res.ok) throw new Error('Failed update')
+      fetchData()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  if (loading) {
     return (
-        <div className="relative w-36 h-36">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
-                <circle cx="64" cy="64" r={radius} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
-                <circle
-                    cx="64" cy="64" r={radius} fill="none"
-                    stroke={color} strokeWidth="8" strokeLinecap="round"
-                    strokeDasharray={circumference} strokeDashoffset={offset}
-                    className="transition-all duration-1000"
-                />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold text-white">{score}%</span>
-                <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Alignment</span>
-            </div>
+      <main className="mx-auto flex min-h-[60vh] w-full max-w-7xl items-center justify-center px-4 py-8 sm:px-6">
+        <div className="surface-card px-8 py-6 text-center">
+          <Loader2 className="mx-auto h-7 w-7 animate-spin text-blue-600" />
+          <p className="mt-3 text-sm font-medium text-slate-700">Loading campaign intelligence...</p>
         </div>
+      </main>
     )
-}
+  }
 
-// ─── Agent Progress Component ───────────────────────
-
-function AgentProgressTracker({ campaignId }: { campaignId: string }) {
-    const [completedSteps, setCompletedSteps] = useState<string[]>([])
-    const [status, setStatus] = useState<string>('ANALYZING')
-
-    useEffect(() => {
-        const poll = setInterval(async () => {
-            try {
-                const res = await fetch(`/api/campaigns/${campaignId}`)
-                if (!res.ok) return
-                const data = await res.json()
-                setCompletedSteps(data.completedSteps || [])
-                setStatus(data.status)
-
-                if (data.status !== 'ANALYZING') {
-                    clearInterval(poll)
-                    // Redirect to full intelligence page after a brief delay
-                    if (data.status === 'DECISION_READY' || data.status === 'COMPLETED') {
-                        setTimeout(() => window.location.reload(), 1500)
-                    }
-                }
-            } catch { /* ignore */ }
-        }, 1000)
-
-        return () => clearInterval(poll)
-    }, [campaignId])
-
+  if (error || !data) {
     return (
-        <div className="min-h-[60vh] flex items-center justify-center">
-            <div className="w-full max-w-lg animate-fade-in-up">
-                <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-8">
-                    {/* Header */}
-                    <div className="text-center mb-8">
-                        <div className="relative inline-block mb-4">
-                            <div className="absolute inset-0 bg-emerald-500/20 rounded-full blur-2xl animate-pulse" />
-                            <div className="relative bg-white/5 backdrop-blur-sm border border-white/10 p-4 rounded-2xl">
-                                <Loader2 className="h-8 w-8 text-emerald-400 animate-spin" />
-                            </div>
-                        </div>
-                        <h2 className="text-xl font-bold text-white mb-1">Workflow Engine Running</h2>
-                        <p className="text-sm text-gray-500">Multi-agent pipeline executing sequentially</p>
-                    </div>
-
-                    {/* Agent Steps */}
-                    <div className="space-y-2">
-                        {AGENT_STEPS.map((step, index) => {
-                            const meta = AGENT_META[step]
-                            const isCompleted = completedSteps.includes(step)
-                            // Current running = first non-completed step
-                            const firstIncomplete = AGENT_STEPS.findIndex(s => !completedSteps.includes(s))
-                            const isRunning = index === firstIncomplete && status === 'ANALYZING'
-                            const isPending = index > firstIncomplete
-
-                            return (
-                                <div
-                                    key={step}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-500 ${isCompleted ? 'bg-emerald-500/5 border border-emerald-500/10' :
-                                        isRunning ? 'bg-white/[0.04] border border-white/10' :
-                                            'bg-transparent border border-transparent opacity-40'
-                                        }`}
-                                >
-                                    {/* Status Icon */}
-                                    <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                                        {isCompleted ? (
-                                            <CheckCircle className="h-5 w-5 text-emerald-400" />
-                                        ) : isRunning ? (
-                                            <Loader2 className="h-5 w-5 text-white animate-spin" />
-                                        ) : (
-                                            <div className="h-5 w-5 border-2 border-gray-700 rounded-full" />
-                                        )}
-                                    </div>
-
-                                    {/* Agent Icon */}
-                                    <span className="text-lg">{meta.icon}</span>
-
-                                    {/* Agent Name */}
-                                    <span className={`text-sm font-medium flex-1 ${isCompleted ? 'text-emerald-400' :
-                                        isRunning ? 'text-white' :
-                                            'text-gray-600'
-                                        }`}>
-                                        {meta.label}
-                                    </span>
-
-                                    {/* Status Label */}
-                                    {isCompleted && (
-                                        <span className="text-[10px] font-semibold text-emerald-400/70 uppercase tracking-wider">Complete</span>
-                                    )}
-                                    {isRunning && (
-                                        <span className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider animate-pulse">Running</span>
-                                    )}
-                                </div>
-                            )
-                        })}
-                    </div>
-
-                    {/* Status message */}
-                    {status !== 'ANALYZING' && (
-                        <div className="mt-6 text-center">
-                            <p className="text-emerald-400 font-semibold text-sm">✅ Pipeline complete. Loading results...</p>
-                        </div>
-                    )}
-                </div>
-            </div>
+      <main className="mx-auto flex min-h-[60vh] w-full max-w-7xl items-center justify-center px-4 py-8 sm:px-6">
+        <div className="surface-card max-w-md p-6 text-center">
+          <AlertTriangle className="mx-auto h-8 w-8 text-red-600" />
+          <p className="mt-3 text-sm font-semibold text-slate-900">{error || 'Unknown error'}</p>
+          <button onClick={fetchData} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+            Retry
+          </button>
         </div>
+      </main>
     )
-}
+  }
 
-// ─── Chart.js Fatigue Trend Chart ──────────────────
+  return (
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6">
+      <section className="top-gradient rounded-3xl p-6 text-white sm:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-lg border border-white/35 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.1em]">
+              <ArrowLeft className="h-3.5 w-3.5" /> Back to dashboard
+            </Link>
+            <h1 className="mt-3 text-3xl font-bold">{data.campaign.platform.toUpperCase()} campaign intelligence</h1>
+            <p className="mt-2 text-sm text-white/90">Phase 7 view: score, explainability timeline, ranked actions, and impact simulation.</p>
+          </div>
+          <div className={`rounded-2xl border px-4 py-3 text-center ${getHealthTone(healthScore)}`}>
+            <p className="text-xs font-semibold uppercase tracking-[0.1em]">Health score</p>
+            <p className="text-3xl font-bold">{healthScore}</p>
+          </div>
+        </div>
+      </section>
 
-function FatigueTrendChart({ data, hasFatigueAcceleration }: { data: FatigueTrendPoint[], hasFatigueAcceleration: boolean }) {
-    const chartRef = useRef(null)
+      <section className="grid gap-4 lg:grid-cols-4">
+        <article className="surface-card p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Signal health</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{data.latestRun ? Math.round(100 - data.latestRun.fatigueScore) : 0}</p>
+        </article>
+        <article className="surface-card p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Forecast risk</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{data.latestForecast?.budgetRiskLevel || 'N/A'}</p>
+        </article>
+        <article className="surface-card p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Data sufficiency</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{Math.min(100, data.fatigueTrend.length * 20)}%</p>
+        </article>
+        <article className="surface-card p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Decision confidence</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{Math.round(data.latestRun?.confidenceScore || 0)}%</p>
+        </article>
+      </section>
 
-    if (data.length < 2) {
-        return (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-                <BarChart3 className="h-8 w-8 text-gray-600 mb-3" />
-                <p className="text-gray-500 text-sm">Need at least 2 analysis runs to show trend.</p>
-                <p className="text-gray-600 text-xs mt-1">Re-analyze this campaign to build history.</p>
+      <section className="grid gap-4 lg:grid-cols-3">
+        <article className="surface-card p-6 lg:col-span-2">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-900">Trend graph</h2>
+            <span className="text-xs text-slate-500">CTR and spend over time</span>
+          </div>
+          {chartData.length === 0 ? (
+            <p className="text-sm text-slate-600">No performance snapshots yet. Import data to populate trends.</p>
+          ) : (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Line yAxisId="left" type="monotone" dataKey="ctr" stroke="#2563eb" name="CTR (%)" strokeWidth={2} />
+                  <Line yAxisId="right" type="monotone" dataKey="spend" stroke="#0f766e" name="Spend ($)" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
-        )
-    }
+          )}
+        </article>
+        <article className="surface-card p-6">
+          <h2 className="text-lg font-bold text-slate-900">Signal summary</h2>
+          <div className="mt-4 space-y-2 text-sm text-slate-700">
+            <p>CTR trend: <span className="font-semibold text-slate-900">{chartData.length > 1 && chartData[chartData.length - 1].ctr < chartData[0].ctr ? 'Declining' : 'Stable'}</span></p>
+            <p>Spend trend: <span className="font-semibold text-slate-900">{chartData.length > 1 && chartData[chartData.length - 1].spend > chartData[0].spend ? 'Rising' : 'Stable'}</span></p>
+            <p>Impression decay: <span className="font-semibold text-slate-900">{data.hasFatigueAcceleration ? 'Moderate' : 'Low'}</span></p>
+            <p>Data confidence: <span className="font-semibold text-slate-900">{data.latestRun?.confidenceScore ? (data.latestRun.confidenceScore > 70 ? 'High' : 'Medium') : 'Low'}</span></p>
+          </div>
+        </article>
+      </section>
 
-    const labels = data.map(d => `#${d.runIndex}`)
-
-    const chartData = {
-        labels,
-        datasets: [
-            {
-                label: 'Fatigue Score',
-                data: data.map(d => d.fatigueScore),
-                borderColor: '#f59e0b',
-                backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                fill: true,
-                tension: 0.4,
-                pointRadius: 5,
-                pointBackgroundColor: '#f59e0b',
-                pointBorderColor: '#0a0a1a',
-                pointBorderWidth: 2,
-                pointHoverRadius: 7,
-                borderWidth: 2.5,
-            },
-            {
-                label: 'Confidence Score',
-                data: data.map(d => d.confidenceScore),
-                borderColor: '#6366f1',
-                backgroundColor: 'rgba(99, 102, 241, 0.05)',
-                fill: true,
-                tension: 0.4,
-                pointRadius: 3,
-                pointBackgroundColor: '#6366f1',
-                pointBorderColor: '#0a0a1a',
-                pointBorderWidth: 2,
-                borderWidth: 2,
-                borderDash: [4, 2],
-            },
-        ],
-    }
-
-    const options = {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: {
-            mode: 'index' as const,
-            intersect: false,
-        },
-        plugins: {
-            legend: {
-                display: false,
-            },
-            tooltip: {
-                backgroundColor: '#12122a',
-                borderColor: 'rgba(255,255,255,0.1)',
-                borderWidth: 1,
-                padding: 12,
-                titleColor: '#9ca3af',
-                titleFont: { size: 11, family: 'monospace' },
-                bodyColor: '#fff',
-                bodyFont: { size: 13 },
-                cornerRadius: 12,
-                callbacks: {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    title: (ctx: any) => {
-                        const point = data[ctx[0].dataIndex]
-                        return `Run #${point.runIndex} · ${new Date(point.timestamp).toLocaleDateString()}`
-                    },
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    afterBody: (ctx: any) => {
-                        const point = data[ctx[0].dataIndex]
-                        return `${point.severityLevel} → ${point.suggestedAction}`
-                    },
-                },
-            },
-        },
-        scales: {
-            x: {
-                grid: { color: 'rgba(255,255,255,0.03)' },
-                ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 11 } },
-                border: { display: false },
-            },
-            y: {
-                min: 0,
-                max: 100,
-                grid: { color: 'rgba(255,255,255,0.03)' },
-                ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 11 } },
-                border: { display: false },
-            },
-        },
-    }
-
-    return (
-        <>
-            {/* Acceleration Warning */}
-            {hasFatigueAcceleration && (
-                <div className="mb-4 flex items-center gap-3 bg-red-500/10 border border-red-500/20 rounded-xl px-5 py-3 animate-fade-in-up">
-                    <div className="bg-red-500/20 p-2 rounded-lg flex-shrink-0">
-                        <AlertTriangle className="h-4 w-4 text-red-400" />
-                    </div>
-                    <div>
-                        <p className="text-red-400 font-semibold text-sm">Creative Exhaustion Detected</p>
-                        <p className="text-red-400/70 text-xs">Trend indicates creative exhaustion acceleration. Fatigue scores are rising consistently across runs.</p>
-                    </div>
+      <section className="grid gap-4 lg:grid-cols-2">
+        <article className="surface-card p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Clock3 className="h-4 w-4 text-blue-700" />
+            <h2 className="text-lg font-bold text-slate-900">Explainability timeline</h2>
+          </div>
+          <div className="space-y-4">
+            {timeline.map((event, index) => (
+              <div key={`${event.title}-${index}`} className="flex gap-3">
+                <div className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-600" />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">{event.date}</p>
+                  <p className="text-sm font-semibold text-slate-900">{event.title}</p>
+                  <p className="text-sm text-slate-600">{event.detail}</p>
                 </div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="surface-card p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-blue-700" />
+            <h2 className="text-lg font-bold text-slate-900">Action priority ranking</h2>
+          </div>
+          <div className="space-y-3">
+            {rankedActions.map((item) => (
+              <div key={item.priority} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Priority {item.priority}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{item.title}</p>
+                <p className="mt-1 text-sm text-slate-600">{item.reason}</p>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <article className="surface-card p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-blue-700" />
+            <h2 className="text-lg font-bold text-slate-900">One-click simulation</h2>
+          </div>
+          <p className="text-sm text-slate-600">Test scenarios before changing spend in the ad platform.</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button onClick={() => runSimulation('increase_budget_20')} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">Increase budget +20%</button>
+            <button onClick={() => runSimulation('reduce_spend_15')} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">Reduce spend -15%</button>
+            <button onClick={() => runSimulation('extend_runtime_7')} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">Extend runtime +7d</button>
+          </div>
+
+          {simLoading && (
+            <p className="mt-4 inline-flex items-center gap-2 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" /> Simulating...</p>
+          )}
+
+          {simulation && (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-900">Scenario: {simulation.scenario.replaceAll('_', ' ')}</p>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <p className="text-slate-600">Burn rate: <span className="font-semibold text-slate-900">${simulation.assumptions.burnRate.toFixed(2)}/day</span></p>
+                <p className="text-slate-600">Risk: <span className="font-semibold text-slate-900">{simulation.assumptions.budgetRisk}</span></p>
+                <p className="text-slate-600">Runway delta: <span className="font-semibold text-slate-900">{simulation.delta.runwayChangeDays == null ? 'N/A' : `${simulation.delta.runwayChangeDays} days`}</span></p>
+                <p className="text-slate-600">Exhaustion date: <span className="font-semibold text-slate-900">{formatDate(simulation.assumptions.exhaustionDate)}</span></p>
+              </div>
+            </div>
+          )}
+        </article>
+
+        <article className="surface-card p-6">
+          <h2 className="text-lg font-bold text-slate-900">Decision and suggestions</h2>
+          {data.latestRecommendation && data.latestRecommendation.status === 'PENDING' && !data.latestRecommendation.userResponse ? (
+            <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <p className="text-sm font-semibold text-slate-900">Pending recommendation</p>
+              <p className="mt-1 text-sm text-slate-600">{data.latestRecommendation.interventionType}: {data.latestRecommendation.recommendedContent}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button onClick={() => submitDecision('ACCEPTED')} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">Accept</button>
+                <button onClick={() => submitDecision('REJECTED')} className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white">Reject</button>
+                <button onClick={() => submitDecision('MODIFIED')} className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white">Modify</button>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-slate-600">No pending recommendation requiring action.</p>
+          )}
+
+          <div className="mt-5 space-y-3">
+            {creativeSuggestions.length === 0 && (
+              <p className="text-sm text-slate-600">No creative suggestions available.</p>
             )}
+            {creativeSuggestions.slice(0, 3).map((suggestion) => (
+              <div key={suggestion.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">{suggestion.suggestionType}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{suggestion.content}</p>
+                <p className="mt-1 text-xs text-slate-600">{suggestion.explanation}</p>
+                {!suggestion.applied ? (
+                  <button onClick={() => markSuggestionApplied(suggestion.id)} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+                    <Check className="h-3.5 w-3.5" /> Mark applied
+                  </button>
+                ) : (
+                  <p className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"><ShieldCheck className="h-3.5 w-3.5" /> Applied</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
 
-            <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6">
-                <div style={{ height: '280px' }}>
-                    <Line ref={chartRef} data={chartData} options={options} />
+      <section className="grid gap-4 lg:grid-cols-3">
+        <article className="surface-card p-6">
+          <h2 className="text-lg font-bold text-slate-900">Financial intelligence</h2>
+          <div className="mt-4 space-y-2 text-sm text-slate-700">
+            <p>Burn rate: <span className="font-semibold text-slate-900">{data.latestForecast?.projectedBurnRate ? `$${data.latestForecast.projectedBurnRate.toFixed(2)}` : 'N/A'}</span></p>
+            <p>Exhaustion date: <span className="font-semibold text-slate-900">{formatDate(data.latestForecast?.predictedSpendExhaustionDate)}</span></p>
+            <p>Statistical risk: <span className="font-semibold text-slate-900">{data.latestForecast?.statisticalConfidenceRisk || 'N/A'}</span></p>
+          </div>
+        </article>
+        <article className="surface-card p-6">
+          <h2 className="text-lg font-bold text-slate-900">AI decision</h2>
+          <div className="mt-4 space-y-2 text-sm text-slate-700">
+            <p>Primary cause: <span className="font-semibold text-slate-900">{data.latestRun?.suggestedAction || 'N/A'}</span></p>
+            <p>Severity: <span className="font-semibold text-slate-900">{data.latestRun?.severityLevel || 'N/A'}</span></p>
+            <p>Confidence: <span className="font-semibold text-slate-900">{data.latestRun?.confidenceScore ? `${data.latestRun.confidenceScore}%` : 'N/A'}</span></p>
+          </div>
+          {data.hasFatigueAcceleration && (
+            <p className="mt-4 inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+              <TriangleAlert className="h-4 w-4" /> Fatigue acceleration detected.
+            </p>
+          )}
+        </article>
+        <article className="surface-card p-6">
+          <h2 className="text-lg font-bold text-slate-900">Creative content preview</h2>
+          {data.creativeContent ? (
+            <div className="mt-4 space-y-3 text-sm text-slate-700">
+              {data.creativeContent.thumbnailUrl && (
+                <img src={data.creativeContent.thumbnailUrl} alt="Instagram thumbnail" className="w-full rounded-lg border border-slate-200 object-cover" />
+              )}
+              <p className="font-semibold text-slate-900">{data.creativeContent.mediaType}</p>
+              <p className="text-slate-600">{data.creativeContent.caption}</p>
+              {Array.isArray(data.creativeContent.hashtags) && data.creativeContent.hashtags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {data.creativeContent.hashtags.map((tag) => (
+                    <span key={tag} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{tag}</span>
+                  ))}
                 </div>
-
-                {/* Legend */}
-                <div className="flex items-center gap-6 mt-4 pt-4 border-t border-white/[0.04]">
-                    <div className="flex items-center gap-2">
-                        <div className="w-3 h-0.5 bg-amber-400 rounded-full" />
-                        <span className="text-xs text-gray-500">Fatigue Score</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="w-3 h-0.5 bg-indigo-400 rounded-full" />
-                        <span className="text-xs text-gray-500">Confidence Score</span>
-                    </div>
-                    <div className="flex items-center gap-2 ml-auto">
-                        <div className="w-6 h-px bg-red-500/30 border-dashed border-t border-red-500" />
-                        <span className="text-xs text-gray-600">Threshold Lines at 60 (HIGH) / 80 (CRITICAL)</span>
-                    </div>
-                </div>
+              )}
             </div>
-        </>
-    )
+          ) : (
+            <p className="mt-4 text-sm text-slate-600">No Instagram content imported yet.</p>
+          )}
+        </article>
+      </section>
+
+      <section className="surface-card p-6">
+        <h2 className="text-lg font-bold text-slate-900">Similar campaigns</h2>
+        {similarCampaigns.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-600">No similar campaigns found yet.</p>
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {similarCampaigns.map((item) => (
+              <div key={item.campaignId} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                <p className="font-semibold text-slate-900">{item.campaignId.slice(0, 12)}</p>
+                <p>Similarity: <span className="font-semibold text-slate-900">{(1 - item.similarityScore).toFixed(2)}</span></p>
+                <p>Status: <span className="font-semibold text-slate-900">{item.outcomeStatus}</span></p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </main>
+  )
 }
 
-// ─── Main Page ──────────────────────────────────────
-
-export default function CampaignIntelligencePage() {
-    const params = useParams()
-    const campaignId = params.id as string
-
-    const [data, setData] = useState<IntelligenceData | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
-    const [campaignStatus, setCampaignStatus] = useState<string | null>(null)
-
-    useEffect(() => {
-        async function fetchIntelligence() {
-            try {
-                // First check campaign status
-                const statusRes = await fetch(`/api/campaigns/${campaignId}`)
-                if (!statusRes.ok) throw new Error('Failed to fetch')
-                const statusData = await statusRes.json()
-                setCampaignStatus(statusData.status)
-
-                // If still analyzing, don't fetch intelligence
-                if (statusData.status === 'ANALYZING') {
-                    setLoading(false)
-                    return
-                }
-
-                // Fetch full intelligence data
-                const res = await fetch(`/api/campaigns/${campaignId}/intelligence`)
-                if (!res.ok) throw new Error('Failed to fetch intelligence')
-                const json = await res.json()
-                setData(json)
-            } catch (err) {
-                setError('Failed to load campaign intelligence')
-                console.error(err)
-            } finally {
-                setLoading(false)
-            }
-        }
-        if (campaignId) fetchIntelligence()
-    }, [campaignId])
-
-    // ─── Decision Handler ──────────────────────────────
-    async function submitDecision(campId: string, decision: string) {
-        try {
-            const res = await fetch(`/api/campaigns/${campId}/decision`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userResponse: decision }),
-            })
-            if (res.ok) {
-                // Reload to refresh the collaboration profile
-                window.location.reload()
-            } else {
-                console.error('Decision submission failed')
-            }
-        } catch (err) {
-            console.error('Decision submission error:', err)
-        }
-    }
-
-    // ─── Mark Suggestion Applied Handler ───────────────────────
-    async function markSuggestionApplied(campId: string, suggestionId: string) {
-        try {
-            const res = await fetch(`/api/campaigns/${campId}/suggestions`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ suggestionId }),
-            })
-            if (res.ok) {
-                // Update local state instead of full reload for better UX
-                setData(prev => {
-                    if (!prev) return prev
-                    return {
-                        ...prev,
-                        creativeSuggestions: prev.creativeSuggestions.map(s =>
-                            s.id === suggestionId ? { ...s, applied: true } : s
-                        )
-                    }
-                })
-            } else {
-                console.error('Failed to mark suggestion applied')
-            }
-        } catch (err) {
-            console.error('Error marking suggestion applied:', err)
-        }
-    }
-
-    // Loading state
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-[#0a0a1a] flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4 animate-fade-in-up">
-                    <div className="relative">
-                        <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-2xl animate-pulse" />
-                        <div className="relative bg-white/5 backdrop-blur-sm border border-white/10 p-5 rounded-2xl">
-                            <Loader2 className="h-8 w-8 text-indigo-400 animate-spin" />
-                        </div>
-                    </div>
-                    <p className="text-gray-500 text-sm font-medium">Loading Intelligence...</p>
-                </div>
-            </div>
-        )
-    }
-
-    // Error state
-    if (error && !data && campaignStatus !== 'ANALYZING') {
-        return (
-            <div className="min-h-screen bg-[#0a0a1a] flex items-center justify-center">
-                <div className="text-center space-y-4">
-                    <AlertTriangle className="h-12 w-12 text-red-400 mx-auto" />
-                    <p className="text-red-400 font-medium">{error}</p>
-                    <Link href="/dashboard" className="inline-flex items-center gap-2 px-5 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-gray-300 hover:bg-white/10 transition-colors">
-                        <ArrowLeft className="h-4 w-4" /> Back to Dashboard
-                    </Link>
-                </div>
-            </div>
-        )
-    }
-
-    return (
-        <div className="min-h-screen bg-[#0a0a1a]">
-            {/* Header */}
-            <header className="border-b border-white/5 bg-[#0a0a1a]/80 backdrop-blur-xl sticky top-0 z-10">
-                <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Link href="/" className="flex items-center gap-2 group">
-                            <div className="bg-gradient-to-br from-emerald-400 to-cyan-400 p-1.5 rounded-lg shadow-lg shadow-emerald-500/20">
-                                <Sparkles className="h-5 w-5 text-white" />
-                            </div>
-                            <h1 className="text-xl font-bold text-white tracking-tight">AdBoostAI</h1>
-                        </Link>
-                        <ChevronRight className="h-4 w-4 text-gray-600" />
-                        <Link href="/dashboard" className="text-gray-400 hover:text-gray-300 text-sm font-medium transition-colors">Dashboard</Link>
-                        <ChevronRight className="h-4 w-4 text-gray-600" />
-                        <span className="text-white text-sm font-semibold">Intelligence</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-sm">
-                        <span className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-gray-400 font-mono text-xs">
-                            {data?.campaign.platform || '...'} · {campaignId.slice(0, 10)}
-                        </span>
-                    </div>
-                </div>
-            </header>
-
-            <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-
-                {/* ═══════════════════════════════════════════════════
-                    AGENT PROGRESS UI (when ANALYZING)
-                ═══════════════════════════════════════════════════ */}
-                {campaignStatus === 'ANALYZING' && (
-                    <AgentProgressTracker campaignId={campaignId} />
-                )}
-
-                {/* ═══════════════════════════════════════════════════
-                    FULL INTELLIGENCE VIEW (when data loaded)
-                ═══════════════════════════════════════════════════ */}
-                {data && (
-                    <>
-                        {/* 1️⃣ FATIGUE TREND CHART */}
-                        <section>
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="bg-amber-500/10 p-2 rounded-lg">
-                                    <TrendingUp className="h-4 w-4 text-amber-400" />
-                                </div>
-                                <div>
-                                    <h2 className="text-white font-bold text-lg">Fatigue Trend</h2>
-                                    <p className="text-xs text-gray-500">{data.fatigueTrend.length} analysis run{data.fatigueTrend.length !== 1 ? 's' : ''} tracked</p>
-                                </div>
-                            </div>
-                            <FatigueTrendChart data={data.fatigueTrend} hasFatigueAcceleration={data.hasFatigueAcceleration} />
-                        </section>
-
-                        {/* 2️⃣ AGENT EXECUTION TIMELINE */}
-                        <section>
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="bg-cyan-500/10 p-2 rounded-lg">
-                                    <Layers className="h-4 w-4 text-cyan-400" />
-                                </div>
-                                <div>
-                                    <h2 className="text-white font-bold text-lg">Agent Execution Timeline</h2>
-                                    <p className="text-xs text-gray-500">Latest pipeline trace</p>
-                                </div>
-                            </div>
-
-                            <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl overflow-hidden">
-                                {data.agentTimeline.length === 0 ? (
-                                    <div className="p-12 text-center">
-                                        <Layers className="h-8 w-8 text-gray-600 mx-auto mb-3" />
-                                        <p className="text-gray-500 text-sm">No workflow logs yet.</p>
-                                    </div>
-                                ) : (
-                                    <div className="divide-y divide-white/[0.04]">
-                                        {data.agentTimeline.map((entry, i) => {
-                                            const meta = AGENT_META[entry.step] || { label: entry.step, color: 'text-gray-400', icon: '⚙️', bgColor: 'bg-gray-500/10' }
-                                            return (
-                                                <div key={i} className="group flex items-start gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors">
-                                                    <div className="flex flex-col items-center pt-0.5">
-                                                        <div className="text-lg leading-none">{meta.icon}</div>
-                                                        {i < data.agentTimeline.length - 1 && (
-                                                            <div className="w-px h-full min-h-[20px] bg-white/[0.06] mt-1" />
-                                                        )}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 mb-0.5">
-                                                            <span className={`text-sm font-semibold ${meta.color}`}>{meta.label}</span>
-                                                            <span className="text-[10px] text-gray-600 font-mono bg-white/[0.03] px-1.5 py-0.5 rounded">
-                                                                {formatTime(entry.timestamp)}
-                                                            </span>
-                                                        </div>
-                                                        <p className="text-xs text-gray-500 font-mono leading-relaxed break-all">
-                                                            {summarizePayload(entry.step, entry.payload)}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        </section>
-
-                        {/* Bottom Grid: Learning Bias + Decision Consistency */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-                            {/* 3️⃣ LEARNING BIAS PANEL */}
-                            <section>
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="bg-purple-500/10 p-2 rounded-lg">
-                                        <Brain className="h-4 w-4 text-purple-400" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-white font-bold text-lg">Learning Bias</h2>
-                                        <p className="text-xs text-gray-500">Behavioral patterns from user decisions</p>
-                                    </div>
-                                </div>
-
-                                <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6 space-y-5">
-                                    {data.learningBias.totalDecisions === 0 ? (
-                                        <div className="text-center py-8">
-                                            <Eye className="h-8 w-8 text-gray-600 mx-auto mb-3" />
-                                            <p className="text-gray-500 text-sm">No decisions recorded yet.</p>
-                                            <p className="text-gray-600 text-xs mt-1">Complete an analysis and make a decision to train the learning layer.</p>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="space-y-3">
-                                                {data.learningBias.avgFatigueAtPause > 0 && (
-                                                    <div className="flex items-start gap-3 bg-white/[0.02] rounded-xl p-4 border border-white/[0.04]">
-                                                        <div className="bg-red-500/10 p-1.5 rounded-lg flex-shrink-0 mt-0.5">
-                                                            <TrendingDown className="h-3.5 w-3.5 text-red-400" />
-                                                        </div>
-                                                        <p className="text-sm text-gray-300 leading-relaxed">
-                                                            User historically pauses at avg fatigue <span className="text-white font-bold font-mono">{data.learningBias.avgFatigueAtPause}</span>.
-                                                        </p>
-                                                    </div>
-                                                )}
-                                                {data.learningBias.avgFatigueAtContinue > 0 && (
-                                                    <div className="flex items-start gap-3 bg-white/[0.02] rounded-xl p-4 border border-white/[0.04]">
-                                                        <div className="bg-emerald-500/10 p-1.5 rounded-lg flex-shrink-0 mt-0.5">
-                                                            <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-                                                        </div>
-                                                        <p className="text-sm text-gray-300 leading-relaxed">
-                                                            User continues/refreshes at avg fatigue <span className="text-white font-bold font-mono">{data.learningBias.avgFatigueAtContinue}</span>.
-                                                        </p>
-                                                    </div>
-                                                )}
-                                                {data.learningBias.systemPauseCount > 0 && (
-                                                    <div className="flex items-start gap-3 bg-white/[0.02] rounded-xl p-4 border border-white/[0.04]">
-                                                        <div className="bg-amber-500/10 p-1.5 rounded-lg flex-shrink-0 mt-0.5">
-                                                            <Shield className="h-3.5 w-3.5 text-amber-400" />
-                                                        </div>
-                                                        <p className="text-sm text-gray-300 leading-relaxed">
-                                                            System recommended pause <span className="text-white font-bold font-mono">{data.learningBias.systemPauseCount}</span> time{data.learningBias.systemPauseCount !== 1 ? 's' : ''}. User ignored <span className="text-white font-bold font-mono">{data.learningBias.userIgnoredPause}</span> time{data.learningBias.userIgnoredPause !== 1 ? 's' : ''}.
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="grid grid-cols-3 gap-3 pt-2">
-                                                <div className="bg-white/[0.03] rounded-xl p-3 text-center">
-                                                    <p className="text-xl font-bold text-white">{data.learningBias.totalDecisions}</p>
-                                                    <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mt-0.5">Decisions</p>
-                                                </div>
-                                                <div className="bg-white/[0.03] rounded-xl p-3 text-center">
-                                                    <p className="text-xl font-bold text-red-400">{data.learningBias.pauseCount}</p>
-                                                    <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mt-0.5">Pauses</p>
-                                                </div>
-                                                <div className="bg-white/[0.03] rounded-xl p-3 text-center">
-                                                    <p className="text-xl font-bold text-blue-400">{data.learningBias.refreshCount}</p>
-                                                    <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mt-0.5">Refreshes</p>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            </section>
-
-                            {/* 4️⃣ DECISION CONSISTENCY SCORE */}
-                            <section>
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="bg-emerald-500/10 p-2 rounded-lg">
-                                        <Target className="h-4 w-4 text-emerald-400" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-white font-bold text-lg">Decision Consistency</h2>
-                                        <p className="text-xs text-gray-500">User vs system alignment</p>
-                                    </div>
-                                </div>
-
-                                <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6">
-                                    {data.decisionConsistency.totalDecisions === 0 ? (
-                                        <div className="text-center py-8">
-                                            <Target className="h-8 w-8 text-gray-600 mx-auto mb-3" />
-                                            <p className="text-gray-500 text-sm">No decisions to compare yet.</p>
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center gap-6">
-                                            <ConsistencyRing score={data.decisionConsistency.score} />
-                                            <div className="text-center">
-                                                <p className="text-sm text-gray-300 font-medium">
-                                                    Decision Alignment: <span className="text-white font-bold">{data.decisionConsistency.score}%</span>
-                                                </p>
-                                                <p className="text-xs text-gray-500 mt-1 max-w-xs mx-auto">
-                                                    {data.decisionConsistency.score >= 80
-                                                        ? 'User closely follows system recommendations. High trust signal.'
-                                                        : data.decisionConsistency.score >= 50
-                                                            ? 'Moderate alignment. User exercises independent judgement.'
-                                                            : 'Low alignment. User frequently overrides system. Learning agent should adapt.'
-                                                    }
-                                                </p>
-                                            </div>
-                                            <div className="w-full grid grid-cols-2 gap-3">
-                                                <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-4 text-center">
-                                                    <p className="text-2xl font-bold text-emerald-400">{data.decisionConsistency.alignedCount}</p>
-                                                    <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mt-1">Aligned</p>
-                                                </div>
-                                                <div className="bg-red-500/5 border border-red-500/10 rounded-xl p-4 text-center">
-                                                    <p className="text-2xl font-bold text-red-400">{data.decisionConsistency.overrideCount}</p>
-                                                    <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mt-1">Overridden</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </section>
-                        </div>
-
-                        {/* 5️⃣ FINANCIAL INTELLIGENCE */}
-                        <section>
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="bg-indigo-500/10 p-2 rounded-lg">
-                                    <DollarSign className="h-4 w-4 text-indigo-400" />
-                                </div>
-                                <div>
-                                    <h2 className="text-white font-bold text-lg">Financial Intelligence</h2>
-                                    <p className="text-xs text-gray-500">Budget forecasting &amp; risk assessment</p>
-                                </div>
-                            </div>
-
-                            <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6">
-                                {!data.latestForecast ? (
-                                    <div className="text-center py-8">
-                                        <DollarSign className="h-8 w-8 text-gray-600 mx-auto mb-3" />
-                                        <p className="text-gray-500 text-sm">No forecast data available.</p>
-                                        <p className="text-gray-600 text-xs mt-1">Ensure the Python forecast service is running and campaign has performance snapshots.</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-5">
-                                        {/* Risk Badges Row */}
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <div className={`rounded-xl p-4 text-center border ${data.latestForecast.budgetRiskLevel === 'HIGH'
-                                                ? 'bg-red-500/5 border-red-500/10'
-                                                : data.latestForecast.budgetRiskLevel === 'MEDIUM'
-                                                    ? 'bg-amber-500/5 border-amber-500/10'
-                                                    : 'bg-emerald-500/5 border-emerald-500/10'
-                                                }`}>
-                                                <p className={`text-xl font-bold ${data.latestForecast.budgetRiskLevel === 'HIGH' ? 'text-red-400'
-                                                    : data.latestForecast.budgetRiskLevel === 'MEDIUM' ? 'text-amber-400'
-                                                        : 'text-emerald-400'
-                                                    }`}>{data.latestForecast.budgetRiskLevel}</p>
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mt-1">Budget Risk</p>
-                                            </div>
-                                            <div className={`rounded-xl p-4 text-center border ${data.latestForecast.statisticalConfidenceRisk === 'HIGH'
-                                                ? 'bg-red-500/5 border-red-500/10'
-                                                : data.latestForecast.statisticalConfidenceRisk === 'MEDIUM'
-                                                    ? 'bg-amber-500/5 border-amber-500/10'
-                                                    : 'bg-emerald-500/5 border-emerald-500/10'
-                                                }`}>
-                                                <p className={`text-xl font-bold ${data.latestForecast.statisticalConfidenceRisk === 'HIGH' ? 'text-red-400'
-                                                    : data.latestForecast.statisticalConfidenceRisk === 'MEDIUM' ? 'text-amber-400'
-                                                        : 'text-emerald-400'
-                                                    }`}>{data.latestForecast.statisticalConfidenceRisk}</p>
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mt-1">Statistical Risk</p>
-                                            </div>
-                                            <div className={`rounded-xl p-4 text-center border ${data.latestForecast.modelConfidence === 'LOW'
-                                                ? 'bg-red-500/5 border-red-500/10'
-                                                : data.latestForecast.modelConfidence === 'MEDIUM'
-                                                    ? 'bg-amber-500/5 border-amber-500/10'
-                                                    : 'bg-emerald-500/5 border-emerald-500/10'
-                                                }`}>
-                                                <p className={`text-xl font-bold ${data.latestForecast.modelConfidence === 'LOW' ? 'text-red-400'
-                                                    : data.latestForecast.modelConfidence === 'MEDIUM' ? 'text-amber-400'
-                                                        : 'text-emerald-400'
-                                                    }`}>{data.latestForecast.modelConfidence}</p>
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mt-1">Model Confidence</p>
-                                            </div>
-                                        </div>
-
-                                        {/* Detail Cards */}
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="bg-white/[0.03] rounded-xl p-4">
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-1">Projected Burn Rate</p>
-                                                <p className="text-2xl font-bold text-white font-mono">
-                                                    {data.latestForecast.projectedBurnRate != null
-                                                        ? `$${data.latestForecast.projectedBurnRate.toFixed(2)}`
-                                                        : '—'
-                                                    }
-                                                    <span className="text-sm text-gray-500 font-normal ml-1">/day</span>
-                                                </p>
-                                            </div>
-                                            <div className="bg-white/[0.03] rounded-xl p-4">
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-1">Budget Exhaustion</p>
-                                                <p className="text-2xl font-bold text-white font-mono">
-                                                    {data.latestForecast.predictedSpendExhaustionDate
-                                                        ? new Date(data.latestForecast.predictedSpendExhaustionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                                                        : '—'
-                                                    }
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </section>
-
-                        {/* 6️⃣ SIMILAR PAST CAMPAIGNS (Phase 4) */}
-                        <section>
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="bg-orange-500/10 p-2 rounded-lg">
-                                    <Activity className="h-4 w-4 text-orange-400" />
-                                </div>
-                                <div>
-                                    <h2 className="text-white font-bold text-lg">Similar Past Campaigns</h2>
-                                    <p className="text-xs text-gray-500">Memory-based similarity matching</p>
-                                </div>
-                            </div>
-
-                            <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6">
-                                {!data.similarCampaigns || data.similarCampaigns.length === 0 ? (
-                                    <div className="text-center py-8">
-                                        <Activity className="h-8 w-8 text-gray-600 mx-auto mb-3" />
-                                        <p className="text-gray-500 text-sm">No similar campaigns found.</p>
-                                        <p className="text-gray-600 text-xs mt-1">The system needs at least 10 analyzed campaigns to build a memory profile.</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {data.similarCampaigns.map((sc, i) => {
-                                            const similarity = Math.round((1 - sc.similarityScore) * 100)
-                                            const outcomeColor = sc.outcomeStatus === 'SUCCESS' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                                                : sc.outcomeStatus === 'FAILED' ? 'text-red-400 bg-red-500/10 border-red-500/20'
-                                                    : 'text-gray-400 bg-gray-500/10 border-gray-500/20'
-                                            return (
-                                                <div key={i} className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg px-2 py-1">
-                                                            <span className="text-orange-400 text-xs font-mono font-bold">{similarity}%</span>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-white text-sm font-medium font-mono">{sc.campaignId.slice(0, 12)}...</p>
-                                                            <p className="text-gray-500 text-xs">Decision: <span className="text-gray-300">{sc.finalDecision}</span></p>
-                                                        </div>
-                                                    </div>
-                                                    <span className={`text-[10px] px-2.5 py-1 rounded-full border font-semibold uppercase tracking-wider ${outcomeColor}`}>
-                                                        {sc.outcomeStatus}
-                                                    </span>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        </section>
-
-                        {/* 7️⃣ AI COLLABORATION PROFILE (Phase 5) */}
-                        <section>
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="bg-pink-500/10 p-2 rounded-lg">
-                                    <Users className="h-4 w-4 text-pink-400" />
-                                </div>
-                                <div>
-                                    <h2 className="text-white font-bold text-lg">AI Collaboration Profile</h2>
-                                    <p className="text-xs text-gray-500">Behavioral adaptation & decision tracking</p>
-                                </div>
-                            </div>
-
-                            <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6 space-y-5">
-                                {/* Decision Buttons */}
-                                {data.latestRecommendation && data.latestRecommendation.status === 'PENDING' && !data.latestRecommendation.userResponse && (
-                                    <div className="bg-gradient-to-r from-pink-500/5 to-violet-500/5 border border-pink-500/15 rounded-xl p-5">
-                                        <p className="text-white text-sm font-semibold mb-1">Pending Recommendation</p>
-                                        <p className="text-gray-400 text-xs mb-4">
-                                            Action: <span className="text-white font-medium">{data.latestRecommendation.interventionType}</span>
-                                            {' — '}{data.latestRecommendation.recommendedContent}
-                                        </p>
-                                        <div className="flex gap-3">
-                                            <button onClick={() => submitDecision(data.campaign.id, 'ACCEPTED')} className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-sm font-medium hover:bg-emerald-500/20 transition-colors">
-                                                <ThumbsUp className="h-3.5 w-3.5" /> Accept
-                                            </button>
-                                            <button onClick={() => submitDecision(data.campaign.id, 'REJECTED')} className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm font-medium hover:bg-red-500/20 transition-colors">
-                                                <ThumbsDown className="h-3.5 w-3.5" /> Reject
-                                            </button>
-                                            <button onClick={() => submitDecision(data.campaign.id, 'MODIFIED')} className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg text-sm font-medium hover:bg-amber-500/20 transition-colors">
-                                                <Edit3 className="h-3.5 w-3.5" /> Modify
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Profile Stats */}
-                                {!data.collaborationProfile ? (
-                                    <div className="text-center py-6">
-                                        <Users className="h-8 w-8 text-gray-600 mx-auto mb-3" />
-                                        <p className="text-gray-500 text-sm">No collaboration data yet.</p>
-                                        <p className="text-gray-600 text-xs mt-1">Accept or reject recommendations to build your profile.</p>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-4 text-center">
-                                                <p className="text-2xl font-bold text-emerald-400">{Math.round(data.collaborationProfile.acceptRate * 100)}%</p>
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mt-1">Accept</p>
-                                            </div>
-                                            <div className="bg-red-500/5 border border-red-500/10 rounded-xl p-4 text-center">
-                                                <p className="text-2xl font-bold text-red-400">{Math.round(data.collaborationProfile.rejectRate * 100)}%</p>
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mt-1">Reject</p>
-                                            </div>
-                                            <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-4 text-center">
-                                                <p className="text-2xl font-bold text-amber-400">{Math.round(data.collaborationProfile.overrideRate * 100)}%</p>
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mt-1">Override</p>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="bg-white/[0.03] rounded-xl p-4">
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-2">Risk Tolerance</p>
-                                                <div className="flex items-center gap-3">
-                                                    <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
-                                                        <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-red-500" style={{ width: `${data.collaborationProfile.riskToleranceScore * 100}%` }} />
-                                                    </div>
-                                                    <span className="text-white text-sm font-mono font-bold">
-                                                        {data.collaborationProfile.riskToleranceScore < 0.3 ? 'Low' : data.collaborationProfile.riskToleranceScore > 0.7 ? 'High' : 'Moderate'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="bg-white/[0.03] rounded-xl p-4">
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-2">Communication Style</p>
-                                                <span className={`text-sm px-3 py-1 rounded-full border font-semibold ${data.collaborationProfile.verbosityPreference === 'CONCISE' ? 'text-violet-400 bg-violet-500/10 border-violet-500/20' : 'text-sky-400 bg-sky-500/10 border-sky-500/20'}`}>
-                                                    {data.collaborationProfile.verbosityPreference}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </section>
-
-                        {/* 8️⃣ CREATIVE INTERVENTIONS (Phase 6) */}
-                        {data.creativeSuggestions && data.creativeSuggestions.length > 0 && (
-                            <section>
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="bg-fuchsia-500/10 p-2 rounded-lg">
-                                        <Lightbulb className="h-4 w-4 text-fuchsia-400" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-white font-bold text-lg">Creative Interventions</h2>
-                                        <p className="text-xs text-gray-500">Actionable improvements for detected issues</p>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-4">
-                                    {data.creativeSuggestions.map((suggestion) => (
-                                        <div key={suggestion.id} className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-5 hover:border-white/10 transition-colors">
-                                            <div className="flex items-start justify-between gap-4">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <span className="text-[10px] font-bold text-fuchsia-400 bg-fuchsia-500/10 border border-fuchsia-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                                            {suggestion.suggestionType}
-                                                        </span>
-                                                        <span className="text-gray-500 text-xs">Primary Cause: {suggestion.primaryCause}</span>
-                                                    </div>
-                                                    <p className="text-white font-medium text-sm leading-relaxed mb-3">"{suggestion.content}"</p>
-
-                                                    <div className="bg-white/[0.03] rounded-lg p-3 border border-white/[0.02]">
-                                                        <p className="text-xs text-gray-400 italic">
-                                                            <span className="font-semibold text-gray-300 not-italic mr-1">Why:</span>
-                                                            {suggestion.explanation}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex flex-col items-end gap-3 min-w-[120px]">
-                                                    <div className="text-right">
-                                                        <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Confidence Impact</p>
-                                                        <p className="text-emerald-400 font-mono text-sm font-bold">+{Math.round(suggestion.confidenceImpact * 100)}%</p>
-                                                    </div>
-                                                    {suggestion.applied ? (
-                                                        <div className="flex items-center gap-1 text-emerald-400 text-xs font-medium px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                                                            <CheckCircle2 className="h-3.5 w-3.5" /> Applied
-                                                        </div>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => markSuggestionApplied(data.campaign.id, suggestion.id)}
-                                                            className="flex items-center gap-1.5 text-white text-xs font-medium px-4 py-2 bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 rounded-lg transition-all shadow-lg shadow-fuchsia-900/20"
-                                                        >
-                                                            <Check className="h-3 w-3" /> Mark Applied
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </section>
-                        )}
-                    </>
-                )}
-            </main>
-        </div>
-    )
-}

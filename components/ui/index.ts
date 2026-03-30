@@ -1,7 +1,6 @@
-// UI Components Barrel Export
-export { Button } from './Button';
-export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './Card';
-export { Input } from './Input';
-export { Textarea } from './Textarea';
-export { Label } from './Label';
-export { Badge } from './Badge';
+export * from './Button'
+export * from './Card'
+export * from './Input'
+export * from './Label'
+export * from './Textarea'
+export * from './Badge'

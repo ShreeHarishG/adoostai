@@ -20,6 +20,9 @@ export async function GET(
                 analysisRuns: {
                     orderBy: { createdAt: 'asc' } // Chronological for charting
                 },
+                performanceSnapshots: {
+                    orderBy: { createdAt: 'asc' }
+                },
                 workflowLogs: {
                     orderBy: { createdAt: 'asc' }
                 },
@@ -42,6 +45,10 @@ export async function GET(
                 creativeSuggestions: {
                     orderBy: { createdAt: 'desc' },
                 },
+                importedContent: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 1,
+                },
             }
         })
 
@@ -63,6 +70,25 @@ export async function GET(
             suggestedAction: run.suggestedAction,
             timestamp: run.createdAt,
         }))
+
+        // --- Snapshot Series for charts ---
+        const snapshotSeries = campaign.performanceSnapshots.map(s => {
+            // Support both legacy and new schema fields during migration
+            const snapshotDate = (s as unknown as { date?: Date; timestamp?: Date }).date
+                ?? (s as unknown as { date?: Date; timestamp?: Date }).timestamp
+                ?? s.createdAt
+            const ctr = s.impressions > 0 ? (s.clicks / s.impressions) * 100 : 0
+            return {
+                date: snapshotDate,
+                impressions: s.impressions,
+                clicks: s.clicks,
+                spend: s.spend,
+                conversions: s.conversions,
+                ctr,
+                reach: s.reach,
+                frequency: s.frequency,
+            }
+        })
 
         // Detect rising fatigue trend (3+ consecutive increases)
         let risingStreak = 0
@@ -185,6 +211,7 @@ export async function GET(
                 updatedAt: campaign.updatedAt,
             },
             fatigueTrend,
+            snapshotSeries,
             hasFatigueAcceleration,
             agentTimeline,
             learningBias: {
@@ -207,6 +234,14 @@ export async function GET(
             latestForecast: campaign.forecastLogs[0] ?? null,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             similarCampaigns: (campaign.agentDebates[0]?.memoryRetrieval as any)?.similarCampaigns ?? [],
+            creativeContent: campaign.importedContent[0] ? {
+                id: campaign.importedContent[0].id,
+                caption: campaign.importedContent[0].caption,
+                hashtags: campaign.importedContent[0].hashtags,
+                mediaType: campaign.importedContent[0].mediaType,
+                thumbnailUrl: campaign.importedContent[0].thumbnailUrl,
+                createdAt: campaign.importedContent[0].createdAt,
+            } : null,
             collaborationProfile: collaborationProfile ? {
                 riskToleranceScore: collaborationProfile.riskToleranceScore,
                 disagreementSuccessRate: collaborationProfile.disagreementSuccessRate,
