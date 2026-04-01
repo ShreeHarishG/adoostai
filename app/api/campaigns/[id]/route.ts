@@ -37,8 +37,8 @@ export async function GET(
         const latestRun = campaign.analysisRuns[0] ?? null
         // Extract completed agent steps for progress tracking
         const completedSteps = campaign.workflowLogs.map(log => log.step)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { analysisRuns, workflowLogs, ...campaignData } = campaign as any
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { analysisRuns, workflowLogs, ...campaignData } = campaign
 
         return NextResponse.json({ ...campaignData, latestRun, completedSteps })
     } catch (error) {
@@ -66,8 +66,12 @@ export async function PUT(
         }
 
         // Determine data to update
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const updateData: any = {
+        const updateData: {
+            version: { increment: number };
+            status?: string;
+            metrics?: string;
+            feedback?: string;
+        } = {
             // Increment version on update automatically
             version: { increment: 1 }
         }

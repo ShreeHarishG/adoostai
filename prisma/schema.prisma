@@ -246,3 +246,13 @@ model CreativeSuggestion {
 
   @@index([campaignId])
 }
+
+model PlatformStats {
+  id                     String @id @default("singleton")
+  campaignsMonitored     Int    @default(0)
+  spendProtected         Float  @default(0)
+  creativeRefreshes      Int    @default(0)
+  totalAnalysesCompleted Int    @default(0)
+  updatedAt              DateTime @updatedAt
+}
+

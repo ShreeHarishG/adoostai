@@ -17,7 +17,12 @@ export function validateInstagramUrl(url: string) {
 export async function fetchInstagramMetadata(url: string): Promise<InstagramMetadata> {
   validateInstagramUrl(url)
 
-  const endpoint = `https://graph.facebook.com/instagram_oembed?url=${encodeURIComponent(url)}`
+  // Clean the URL by removing query parameters (e.g., ?utm_source)
+  const urlObj = new URL(url)
+  urlObj.search = ''
+  const cleanUrl = urlObj.toString()
+
+  const endpoint = `https://graph.facebook.com/instagram_oembed?url=${encodeURIComponent(cleanUrl)}`
   const response = await fetch(endpoint)
 
   if (!response.ok) {
@@ -43,3 +48,37 @@ export async function fetchInstagramMetadata(url: string): Promise<InstagramMeta
     timestamp: data.timestamp ?? null,
   }
 }
+
+// Detect whether an Instagram URL is a post, account profile, or invalid
+export function detectInstagramUrlType(url: string): 'post' | 'account' | 'invalid' {
+  let cleanUrl = url
+  try {
+    const urlObj = new URL(url)
+    urlObj.search = ''
+    urlObj.hash = ''
+    cleanUrl = urlObj.toString()
+  } catch (e) {
+    // Ignore invalid URL errors here, regex will fail anyway
+  }
+
+  if (/instagram\.com\/(p|reel|tv)\/[A-Za-z0-9_-]+/.test(cleanUrl)) return 'post'
+  if (/instagram\.com\/([A-Za-z0-9_.]+)\/?$/.test(cleanUrl)) return 'account'
+  return 'invalid'
+}
+
+// For account URLs, extract the username
+export function extractInstagramUsername(url: string): string | null {
+  let cleanUrl = url
+  try {
+    const urlObj = new URL(url)
+    urlObj.search = ''
+    urlObj.hash = ''
+    cleanUrl = urlObj.toString()
+  } catch (e) {
+    // Ignore invalid URL parsing errors
+  }
+
+  const match = cleanUrl.match(/instagram\.com\/([A-Za-z0-9_.]+)\/?$/)
+  return match ? match[1] : null
+}
+

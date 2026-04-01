@@ -101,6 +101,13 @@ export default function ImportCampaignPage() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Instagram fetch failed.')
+
+      // Handle account-level URL guidance
+      if (json.urlType === 'account') {
+        setStatus(json.message)
+        return
+      }
+
       setStatus('Instagram metadata fetched. Preview available on campaign page.')
     } catch (err) {
       setError((err as Error).message)
@@ -148,20 +155,21 @@ export default function ImportCampaignPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+      <div className="mb-8 flex items-center justify-between">
         <div>
-          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-slate-500">
+          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-300">
             <ArrowLeft className="h-4 w-4" /> Back to dashboard
           </Link>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">Import campaign data</h1>
-          <p className="mt-2 text-sm text-slate-600">Pick a source to ingest performance data and trigger the pipeline automatically.</p>
+          <h1 className="mt-2 text-3xl font-bold text-white">Import campaign data</h1>
+          <p className="mt-2 text-sm text-slate-400">Pick a source to ingest performance data and trigger the pipeline automatically.</p>
         </div>
         <Link href="/dashboard">
           <Button variant="outline">View campaigns</Button>
         </Link>
       </div>
 
+      {/* ─── Campaign Selector ────────────────── */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Select campaign</CardTitle>
@@ -171,11 +179,11 @@ export default function ImportCampaignPage() {
           <select
             value={campaignId}
             onChange={(event) => setCampaignId(event.target.value)}
-            className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900"
+            className="h-10 w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
           >
             {campaigns.length === 0 && <option value="">No campaigns available</option>}
             {campaigns.map((campaign) => (
-              <option key={campaign.id} value={campaign.id}>
+              <option key={campaign.id} value={campaign.id} className="bg-[#111827] text-slate-100">
                 {campaign.platform.toUpperCase()} - {campaign.adType || 'General'}
               </option>
             ))}
@@ -183,6 +191,7 @@ export default function ImportCampaignPage() {
         </CardContent>
       </Card>
 
+      {/* ─── Tab Bar ──────────────────────────── */}
       <div className="flex flex-wrap gap-2">
         <Button variant={tab === 'csv' ? 'default' : 'outline'} onClick={() => setTab('csv')}>
           <CloudUpload className="h-4 w-4" /> CSV Upload
@@ -195,6 +204,7 @@ export default function ImportCampaignPage() {
         </Button>
       </div>
 
+      {/* ─── Tab Content ──────────────────────── */}
       <div className="mt-6 grid gap-4">
         {tab === 'csv' && (
           <Card>
@@ -207,9 +217,10 @@ export default function ImportCampaignPage() {
                 type="file"
                 accept=".csv"
                 onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-indigo-500 file:cursor-pointer file:transition-colors"
               />
               <Button onClick={handleCsvUpload} disabled={isLoading}>
-                {isLoading ? 'Uploading...' : 'Upload CSV'}
+                {isLoading ? 'Uploading…' : 'Upload CSV'}
               </Button>
             </CardContent>
           </Card>
@@ -219,7 +230,7 @@ export default function ImportCampaignPage() {
           <Card>
             <CardHeader>
               <CardTitle>Instagram link</CardTitle>
-              <CardDescription>Paste a public Instagram post URL to extract creative metadata.</CardDescription>
+              <CardDescription>Paste your best-performing post links (e.g. instagram.com/p/... or /reel/...) to analyse those creatives.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -230,9 +241,10 @@ export default function ImportCampaignPage() {
                   onChange={(event) => setInstagramUrl(event.target.value)}
                   placeholder="https://www.instagram.com/p/..."
                 />
+                <p className="text-xs text-slate-500">For account links, we&apos;ll analyse your most recent posts via our data partner.</p>
               </div>
               <Button onClick={handleInstagram} disabled={isLoading}>
-                {isLoading ? 'Fetching...' : 'Fetch Metadata'}
+                {isLoading ? 'Fetching…' : 'Fetch Metadata'}
               </Button>
             </CardContent>
           </Card>
@@ -273,21 +285,22 @@ export default function ImportCampaignPage() {
                 />
               </div>
               <Button onClick={handleMetaFetch} disabled={isLoading}>
-                {isLoading ? 'Fetching...' : 'Fetch Metrics'}
+                {isLoading ? 'Fetching…' : 'Fetch Metrics'}
               </Button>
             </CardContent>
           </Card>
         )}
 
+        {/* ─── Status / Error ─────────────────── */}
         {(status || error) && (
           <Card>
             <CardContent className="py-4">
-              {status && <p className="text-sm font-medium text-emerald-700">{status}</p>}
-              {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+              {status && <p className="text-sm font-medium text-emerald-400">{status}</p>}
+              {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
             </CardContent>
           </Card>
         )}
       </div>
-    </main>
+    </div>
   )
 }

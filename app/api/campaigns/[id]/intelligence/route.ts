@@ -124,6 +124,7 @@ export async function GET(
         const refreshDecisions = allDecisions.filter(d => d.actionTaken === 'refresh_creative')
 
         // Find runs that have corresponding decisions
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const runsWithActions = campaign.analysisRuns.map(run => {
             const suggestedAction = run.suggestedAction
             return {

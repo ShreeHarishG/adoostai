@@ -1,3 +1,11 @@
+# AdBoostAI
+
+**The problem:** Marketers running paid ads lose 25–40% of their budget to fatigued creatives. CTR drops on day 3. They notice on day 8. The money is already gone.
+
+**What AdBoostAI does:** It watches every campaign signal in real-time, runs a structured AI debate between four specialist agents, and either alerts the human or acts autonomously — pausing campaigns, capping spend, and generating replacement ad copy — before the budget is wasted.
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

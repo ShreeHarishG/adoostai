@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth'
-import { fetchInstagramMetadata } from '@/lib/instagram-parser'
+import { fetchInstagramMetadata, detectInstagramUrlType, extractInstagramUsername } from '@/lib/instagram-parser'
 
 export async function POST(request: Request) {
   let importedFileId: string | null = null
@@ -16,6 +16,24 @@ export async function POST(request: Request) {
 
     if (!url) {
       return NextResponse.json({ error: 'Instagram URL is required.' }, { status: 400 })
+    }
+
+    const urlType = detectInstagramUrlType(url)
+
+    if (urlType === 'invalid') {
+      return NextResponse.json(
+        { error: 'Invalid Instagram URL. Please use a post link (instagram.com/p/... or /reel/...).' },
+        { status: 400 },
+      )
+    }
+
+    if (urlType === 'account') {
+      const username = extractInstagramUsername(url)
+      return NextResponse.json({
+        urlType: 'account',
+        username,
+        message: `Account-level URLs like @${username} require individual post links. Paste your 3 best-performing post links to analyse those creatives. For account-level scraping, configure an Apify or RapidAPI data partner.`,
+      })
     }
 
     const campaign = await prisma.campaign.findUnique({

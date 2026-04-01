@@ -65,7 +65,7 @@ export function generateRecommendations(
   request: AnalysisRequest
 ): Recommendation[] {
   const recommendations: Recommendation[] = [];
-  const { performanceMetrics, adInput, feedbackData } = request;
+  const { performanceMetrics, feedbackData } = request;
 
   // Creative refresh recommendation
   if (diagnosis.level === 'high' || diagnosis.level === 'critical') {

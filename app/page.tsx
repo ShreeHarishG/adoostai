@@ -1,6 +1,6 @@
-﻿'use client'
+'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowRight, CheckCircle2, Loader2, Sparkles, XCircle } from 'lucide-react'
 import { AdInputForm } from '@/components/features/ad-analysis/AdInputForm'
@@ -13,6 +13,12 @@ type Step = 'ad-input' | 'metrics' | 'feedback' | 'results'
 type ExtendedCampaignStatus = CampaignStatus | 'AWAITING_USER_ACTION'
 
 const stepOrder: Step[] = ['ad-input', 'metrics', 'feedback', 'results']
+const stepLabels: Record<Step, string> = {
+  'ad-input': 'Tell us about your ad',
+  'metrics': 'Add basic results',
+  'feedback': 'Optional customer feedback',
+  'results': 'Get simple next steps',
+}
 
 export default function Home() {
   const [currentStep, setCurrentStep] = useState<Step>('ad-input')
@@ -22,61 +28,77 @@ export default function Home() {
   const [campaignId, setCampaignId] = useState<string | null>(null)
   const [workflowStatus, setWorkflowStatus] = useState<ExtendedCampaignStatus>('DRAFT')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [platformStats, setPlatformStats] = useState<{ campaignsMonitored: number; spendProtected: number; creativeRefreshes: number } | null>(null)
+
+  const loadStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/stats')
+      if (res.ok) setPlatformStats(await res.json())
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => { loadStats() }, [loadStats])
 
   const stepIndex = stepOrder.indexOf(currentStep) + 1
 
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null
+    if (!campaignId || workflowStatus !== 'ANALYZING') return
 
-    const checkWorkflowStatus = async () => {
-      if (!campaignId || workflowStatus !== 'ANALYZING') return
+    const eventSource = new EventSource(`/api/campaigns/${campaignId}/stream`)
 
+    eventSource.onmessage = async (event) => {
       try {
-        const res = await fetch(`/api/campaigns/${campaignId}`)
-        if (!res.ok) throw new Error('Failed to fetch campaign status')
+        const data = JSON.parse(event.data)
 
-        const campaign = await res.json()
-        setWorkflowStatus(campaign.status)
+        if (data.type === 'complete') {
+          eventSource.close()
+          setWorkflowStatus(data.status as ExtendedCampaignStatus)
 
-        if (campaign.status === 'DECISION_READY' || campaign.status === 'AWAITING_USER_ACTION') {
-          const run = campaign.latestRun
-          if (!run) throw new Error('No analysis run found')
+          if (data.status === 'FAILED') {
+            setErrorMessage('The workflow engine encountered a critical error during analysis.')
+            return
+          }
 
-          const recommendations = JSON.parse(run.recommendationOutput)
-          const fatigueOutput = JSON.parse(run.fatigueOutput)
+          // Fetch final results
+          try {
+            const res = await fetch(`/api/campaigns/${campaignId}`)
+            if (!res.ok) throw new Error('Failed to fetch campaign')
+            const campaign = await res.json()
+            const run = campaign.latestRun
+            if (!run) throw new Error('No analysis run found')
 
-          setAnalysisResult({
-            adId: campaign.id,
-            timestamp: new Date(run.createdAt),
-            summary: 'Workflow Engine completed analysis',
-            fatigueDiagnosis: {
-              level: 'moderate',
-              severityLevel: run.severityLevel,
-              impactScore: run.fatigueScore || 0,
-              confidence: run.confidenceScore || 0,
-              primaryReasons: [fatigueOutput.primaryIssue || 'Unknown'],
-            },
-            recommendations: [],
-            structuredRecommendations: recommendations,
-          })
-          setCurrentStep('results')
-        }
+            const recommendations = JSON.parse(run.recommendationOutput)
+            const fatigueOutput = JSON.parse(run.fatigueOutput)
 
-        if (campaign.status === 'FAILED') {
-          setErrorMessage('The workflow engine encountered a critical error during analysis.')
+            setAnalysisResult({
+              adId: campaign.id,
+              timestamp: new Date(run.createdAt),
+              summary: 'Workflow Engine completed analysis',
+              fatigueDiagnosis: {
+                level: 'moderate',
+                severityLevel: run.severityLevel,
+                impactScore: run.fatigueScore || 0,
+                confidence: run.confidenceScore || 0,
+                primaryReasons: [fatigueOutput.primaryIssue || 'Unknown'],
+              },
+              recommendations: [],
+              structuredRecommendations: recommendations,
+            })
+            setCurrentStep('results')
+          } catch (fetchErr) {
+            console.error('Failed to fetch final results:', fetchErr)
+          }
         }
       } catch (err) {
-        console.error('Polling error:', err)
+        console.error('SSE parse error:', err)
       }
     }
 
-    if (workflowStatus === 'ANALYZING') {
-      interval = setInterval(checkWorkflowStatus, 2000)
+    eventSource.onerror = () => {
+      eventSource.close()
     }
 
-    return () => {
-      if (interval) clearInterval(interval)
-    }
+    return () => eventSource.close()
   }, [campaignId, workflowStatus])
 
   const handleAdInputSubmit = (data: AdInput) => {
@@ -164,45 +186,69 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6">
-      <section className="rise-in grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-        <div className="surface-card top-gradient p-8 text-white">
-          <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em]">
-            <Sparkles className="h-3.5 w-3.5" /> Simple Campaign Checkup
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6">
+      {/* ─── Hero ─────────────────────────────── */}
+      <section className="rise-in grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+        <div className="top-gradient rounded-2xl p-8 sm:p-10">
+          <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-widest text-white/90">
+            <Sparkles className="h-3.5 w-3.5" /> Campaign Checkup
           </p>
-          <h1 className="max-w-2xl text-3xl font-bold leading-tight sm:text-4xl">
-            Clear answers about what to fix, without marketing jargon.
+          <h1 className="max-w-xl text-3xl font-bold leading-[1.15] text-white sm:text-4xl">
+            Stop losing budget to fatigued creatives.
           </h1>
-          <p className="mt-4 max-w-2xl text-sm text-white/90 sm:text-base">
-            We translate your ad results into plain steps anyone can follow.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/dashboard" className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-900">
+          <div className="mt-5 max-w-xl space-y-3 text-sm leading-relaxed text-white/80 sm:text-base">
+            <p><span className="font-semibold text-white">The problem:</span> Marketers running paid ads lose 25–40% of their budget to fatigued creatives. CTR drops on day 3. They notice on day 8. The money is already gone.</p>
+            <p><span className="font-semibold text-white">What AdBoostAI does:</span> It watches every campaign signal in real-time, runs a structured AI debate between four specialist agents, and either alerts the human or acts autonomously &mdash; before the budget is wasted.</p>
+          </div>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-lg transition-transform hover:scale-[1.02]">
               Open Dashboard
             </Link>
-            <a href="#analysis-workflow" className="rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold text-white">
-              Start Analysis
+            <a href="#analysis-workflow" className="inline-flex items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur transition-colors hover:bg-white/20">
+              Start Analysis <ArrowRight className="h-4 w-4" />
             </a>
           </div>
         </div>
 
-        <div className="surface-card p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Steps</p>
-          <h2 className="mt-2 text-xl font-bold text-slate-900">What happens next</h2>
+        <div className="surface-card flex flex-col justify-center p-6 gap-6">
+          {/* ─── Impact Counter ──────────── */}
+          {platformStats && (
+            <div className="flex items-center gap-4 rounded-xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3">
+              <div className="text-center">
+                <p className="text-lg font-bold text-emerald-400">{platformStats.campaignsMonitored}</p>
+                <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500">Monitored</p>
+              </div>
+              <div className="h-6 w-px bg-white/10" />
+              <div className="text-center">
+                <p className="text-lg font-bold text-emerald-400">${platformStats.spendProtected.toLocaleString()}</p>
+                <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500">Protected</p>
+              </div>
+              <div className="h-6 w-px bg-white/10" />
+              <div className="text-center">
+                <p className="text-lg font-bold text-emerald-400">{platformStats.creativeRefreshes}</p>
+                <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500">Refreshes</p>
+              </div>
+            </div>
+          )}
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Progress</p>
+          <h2 className="mt-2 text-lg font-bold text-white">What happens next</h2>
           <div className="mt-5 space-y-3">
             {stepOrder.map((step, i) => {
               const completed = i < stepIndex - 1 || (currentStep === 'results' && i === stepOrder.length - 1)
               const active = step === currentStep
               return (
                 <div key={step} className="flex items-center gap-3">
-                  <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${completed ? 'bg-emerald-100 text-emerald-700' : active ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+                  <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
+                    completed
+                      ? 'bg-emerald-500/15 text-emerald-400'
+                      : active
+                        ? 'bg-indigo-500/20 text-indigo-400 ring-2 ring-indigo-500/30'
+                        : 'bg-white/[0.06] text-slate-500'
+                  }`}>
                     {i + 1}
                   </span>
-                  <span className={`text-sm font-medium ${active ? 'text-slate-900' : 'text-slate-600'}`}>
-                    {step === 'ad-input' && 'Tell us about your ad'}
-                    {step === 'metrics' && 'Add basic results'}
-                    {step === 'feedback' && 'Optional customer feedback'}
-                    {step === 'results' && 'Get simple next steps'}
+                  <span className={`text-sm ${active ? 'font-medium text-white' : 'text-slate-400'}`}>
+                    {stepLabels[step]}
                   </span>
                 </div>
               )
@@ -211,14 +257,15 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ─── Analysis Workflow ────────────────── */}
       <section id="analysis-workflow" className="rise-in surface-card p-6 sm:p-8">
         <div className="mb-6 flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Step {stepIndex} of 4</p>
-            <h2 className="mt-1 text-2xl font-bold text-slate-900">Campaign Checkup</h2>
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Step {stepIndex} of 4</p>
+            <h2 className="mt-1 text-xl font-bold text-white">Campaign Checkup</h2>
           </div>
           {workflowStatus === 'ANALYZING' && (
-            <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+            <span className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-300">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Running
             </span>
           )}
@@ -226,22 +273,22 @@ export default function Home() {
 
         <div className="relative">
           {workflowStatus === 'ANALYZING' && (
-            <div className="absolute inset-0 z-20 flex min-h-[420px] items-center justify-center rounded-2xl bg-white/90 backdrop-blur-sm">
+            <div className="absolute inset-0 z-20 flex min-h-[420px] items-center justify-center rounded-2xl bg-[#0B1120]/90 backdrop-blur-sm">
               <div className="text-center">
-                <Loader2 className="mx-auto h-8 w-8 animate-spin text-blue-600" />
-                <p className="mt-3 text-sm font-semibold text-slate-900">We are analyzing your results</p>
-                <p className="mt-1 text-xs text-slate-500">You will get simple steps to improve.</p>
+                <Loader2 className="mx-auto h-8 w-8 animate-spin text-indigo-400" />
+                <p className="mt-3 text-sm font-semibold text-white">Analyzing your campaign</p>
+                <p className="mt-1 text-xs text-slate-400">Four AI agents are debating the signals…</p>
               </div>
             </div>
           )}
 
           {workflowStatus === 'FAILED' && (
-            <div className="absolute inset-0 z-20 flex min-h-[420px] items-center justify-center rounded-2xl bg-red-50/95 backdrop-blur-sm">
+            <div className="absolute inset-0 z-20 flex min-h-[420px] items-center justify-center rounded-2xl bg-red-950/90 backdrop-blur-sm">
               <div className="max-w-md px-6 text-center">
-                <XCircle className="mx-auto h-9 w-9 text-red-600" />
-                <p className="mt-3 text-sm font-semibold text-slate-900">Workflow failed</p>
-                <p className="mt-1 text-xs text-red-700">{errorMessage}</p>
-                <button onClick={handleReset} className="mt-4 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700">
+                <XCircle className="mx-auto h-9 w-9 text-red-400" />
+                <p className="mt-3 text-sm font-semibold text-white">Workflow failed</p>
+                <p className="mt-1 text-xs text-red-300">{errorMessage}</p>
+                <button onClick={handleReset} className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition-colors hover:bg-red-500/20">
                   Reset
                 </button>
               </div>
@@ -259,21 +306,21 @@ export default function Home() {
               <AnalysisResults result={analysisResult} onReset={handleReset} />
 
               {workflowStatus !== 'COMPLETED' ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-sm font-semibold text-slate-900">Record your decision</p>
-                  <p className="mt-1 text-xs text-slate-500">This feedback is used to train collaboration and recommendation behavior.</p>
+                <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-5">
+                  <p className="text-sm font-semibold text-white">Record your decision</p>
+                  <p className="mt-1 text-xs text-slate-400">This feedback trains the collaboration and recommendation agents.</p>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button onClick={() => handleDecision('pause_ad')} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                    <button onClick={() => handleDecision('pause_ad')} className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/[0.08] hover:text-white">
                       Pause Campaign
                     </button>
-                    <button onClick={() => handleDecision('refresh_creative')} className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white">
+                    <button onClick={() => handleDecision('refresh_creative')} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition-colors hover:bg-indigo-500">
                       Refresh Creative <ArrowRight className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-                  <p className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-5">
+                  <p className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-400">
                     <CheckCircle2 className="h-4 w-4" /> Decision recorded successfully
                   </p>
                 </div>
@@ -282,7 +329,6 @@ export default function Home() {
           )}
         </div>
       </section>
-    </main>
+    </div>
   )
 }
-

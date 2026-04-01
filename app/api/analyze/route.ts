@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { processCampaignWorkflow } from '@/lib/workflow-engine'
 
 // Now an async orchestrator endpoint

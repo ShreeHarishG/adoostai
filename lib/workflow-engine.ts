@@ -25,7 +25,6 @@ async function loadWorkflowContext(campaignId: string) {
 
     const feedback: FeedbackData | undefined = campaign.feedback ? JSON.parse(campaign.feedback) : undefined;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const decisionHistory = await prisma.decisionHistory.findMany({
         where: { campaign: { userId: campaign.userId } },
         select: { actionTaken: true, notes: true, campaignId: true },
@@ -49,6 +48,35 @@ function createLogPayload(campaignId: string, stepName: string, data: any) {
             payload: JSON.stringify(data),
         }
     });
+}
+
+// ─── n8n Autonomous Action Webhook ─────────────────────
+
+async function triggerN8nAutomation(payload: {
+    campaignId: string
+    platform: string
+    severity: string
+    recommendedAction: string
+    confidence: number
+    estimatedWastedSpend: number
+    campaignUrl: string
+}) {
+    const webhookUrl = process.env.N8N_WEBHOOK_URL
+    if (!webhookUrl) return
+
+    await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Webhook-Secret': process.env.N8N_WEBHOOK_SECRET ?? '',
+        },
+        body: JSON.stringify({
+            ...payload,
+            timestamp: new Date().toISOString(),
+            alertType: payload.severity === 'CRITICAL' ? 'urgent' : 'warning',
+        }),
+        signal: AbortSignal.timeout(5000),
+    }).catch(err => console.warn('[n8n] Webhook failed:', err))
 }
 
 // ─── The Orchestrator ──────────────────────────────────
@@ -186,15 +214,41 @@ export async function processCampaignWorkflow(campaignId: string) {
         await agentDelay();
 
         // ═══ Step D2: Creative Intervention Engine (Phase 6) ═══
-        const creativeSuggestions = generateCreativeInterventions(
+        const creativeSuggestions = await generateCreativeInterventions(
             debate.synthesizerOutput,
             signalProfile,
             collaborationInput,
+            {
+                platform: campaign.platform,
+                adType: campaign.adType,
+            }
         );
         await createLogPayload(campaignId, 'CREATIVE_ENGINE', {
             cause: debate.synthesizerOutput.primaryCause,
             suggestionsGenerated: creativeSuggestions.length,
         });
+        await agentDelay();
+
+        // ═══ Step D3: n8n Autonomous Action Webhook (Phase 2) ═══
+        try {
+            const burnRate = forecastData?.projectedBurnRate ?? 0
+            const confidencePercent = Math.round(debate.synthesizerOutput.confidence * 100)
+            await triggerN8nAutomation({
+                campaignId,
+                platform: campaign.platform,
+                severity: debate.synthesizerOutput.severity,
+                recommendedAction: debate.synthesizerOutput.recommendedAction,
+                confidence: confidencePercent,
+                estimatedWastedSpend: Math.round(burnRate * 3), // ~3 days of waste if undetected
+                campaignUrl: `/dashboard/campaign/${campaignId}`,
+            })
+            await createLogPayload(campaignId, 'N8N_WEBHOOK', {
+                status: process.env.N8N_WEBHOOK_URL ? 'sent' : 'skipped',
+                severity: debate.synthesizerOutput.severity,
+            })
+        } catch (n8nErr) {
+            console.warn('[n8n] Automation trigger failed:', n8nErr)
+        }
         await agentDelay();
 
         // ═══ Step E: Store Results ═══
@@ -256,6 +310,29 @@ export async function processCampaignWorkflow(campaignId: string) {
                 data: { status: 'DECISION_READY' },
             }),
         ]);
+
+        // ═══ Step F: Increment Platform Stats (Phase 5) ═══
+        try {
+            const burnRate = forecastData?.projectedBurnRate ?? 0
+            await prisma.platformStats.upsert({
+                where: { id: 'singleton' },
+                create: {
+                    id: 'singleton',
+                    campaignsMonitored: 1,
+                    spendProtected: Math.round(burnRate * 3),
+                    creativeRefreshes: creativeSuggestions.length,
+                    totalAnalysesCompleted: 1,
+                },
+                update: {
+                    campaignsMonitored: { increment: 1 },
+                    spendProtected: { increment: Math.round(burnRate * 3) },
+                    creativeRefreshes: { increment: creativeSuggestions.length },
+                    totalAnalysesCompleted: { increment: 1 },
+                },
+            })
+        } catch (statsErr) {
+            console.warn('[PlatformStats] Failed to update:', statsErr)
+        }
 
         console.log(`[Workflow Success] Campaign ${campaignId} Phase 6 pipeline completed. ${creativeSuggestions.length} creative suggestions generated.`);
 

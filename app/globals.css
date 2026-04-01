@@ -1,45 +1,27 @@
-﻿@import "tailwindcss";
-
-:root {
-  --bg: #f4f7fb;
-  --fg: #102033;
-  --surface: #ffffff;
-  --surface-muted: #eef3f9;
-  --border: #d6e0ec;
-  --brand: #0a66ff;
-  --brand-strong: #084ec6;
-  --accent: #0fbf9a;
-  --danger: #dc2626;
-  --warning: #d97706;
-  --success: #15803d;
-  --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "Cascadia Mono", "Fira Code", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
+@import "tailwindcss";
 
 @theme inline {
-  --color-background: var(--bg);
-  --color-foreground: var(--fg);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
+  --color-background: #0B1120;
+  --color-foreground: #F1F5F9;
+  --font-sans: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", Menlo, monospace;
 }
 
-* {
-  box-sizing: border-box;
+/* ══════════════════════════════════════════════════
+   Global overrides — placed AFTER Tailwind import
+   so they take precedence over preflight resets.
+   ══════════════════════════════════════════════════ */
+
+html {
+  scroll-behavior: smooth;
 }
 
-html,
 body {
-  margin: 0;
-  min-height: 100%;
-}
-
-body {
-  background:
-    radial-gradient(circle at 85% -10%, #dcecff 0, transparent 36%),
-    radial-gradient(circle at 0% 100%, #e6fff8 0, transparent 32%),
-    var(--bg);
-  color: var(--fg);
-  font-family: var(--font-sans);
+  background-color: #0B1120 !important;
+  color: #F1F5F9 !important;
+  font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 a {
@@ -47,25 +29,57 @@ a {
   text-decoration: none;
 }
 
+::selection {
+  background: rgba(99, 102, 241, 0.3);
+  color: #fff;
+}
+
+/* ─── App Shell ──────────────────────────────────── */
+
 .app-shell {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
+
+/* ─── Surface / Card System ──────────────────────── */
 
 .surface-card {
-  background: color-mix(in srgb, var(--surface) 94%, #f3f8ff 6%);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  box-shadow: 0 22px 48px -28px rgba(13, 34, 64, 0.45);
+  background: #111827 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 8px 40px -12px rgba(0, 0, 0, 0.5);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.top-gradient {
-  background: linear-gradient(100deg, #0a66ff 0%, #0d8ef7 55%, #12b6dc 100%);
+.surface-card:hover {
+  border-color: rgba(255, 255, 255, 0.14);
 }
+
+/* ─── Gradients ──────────────────────────────────── */
+
+.top-gradient {
+  background: linear-gradient(135deg, #6366F1 0%, #4F46E5 40%, #0EA5E9 100%) !important;
+}
+
+.glow-card {
+  background: #111827 !important;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 1px rgba(16, 185, 129, 0.08),
+    0 0 30px -8px rgba(16, 185, 129, 0.15),
+    0 8px 40px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* ─── Animations ─────────────────────────────────── */
 
 @keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -74,6 +88,43 @@ a {
 }
 
 .rise-in {
-  animation: rise-in 0.45s ease both;
+  animation: rise-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px -6px rgba(16, 185, 129, 0.3); }
+  50% { box-shadow: 0 0 30px -4px rgba(16, 185, 129, 0.5); }
+}
+
+.pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-in {
+  animation: fade-in 0.3s ease both;
+}
+
+/* ─── Scrollbar ──────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}

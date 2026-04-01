@@ -2,13 +2,7 @@
  * Creative Intervention Engine
  *
  * Generates actionable ad improvement suggestions based on the
- * diagnosed primary cause from the reasoning pipeline.
- *
- * Flow:
- *   primaryCause → strategy lookup → deterministic suggestion generation
- *
- * Each suggestion includes content + explainability reasoning
- * referencing the signal data that triggered it.
+ * diagnosed primary cause from the reasoning pipeline using Gemini API.
  */
 
 import { SynthesizerOutput, CollaborationInput, SignalProfileInput } from './reasoning/types'
@@ -23,52 +17,21 @@ export interface CreativeSuggestionInput {
     confidenceImpact: number
 }
 
-// ─── Cause → Strategy Map ───────────────────────────────
-
-interface Strategy {
-    type: 'HEADLINE' | 'CTA' | 'REFRAME' | 'STRUCTURAL'
-    template: string
-    rationale: string
+export interface CampaignContext {
+    platform: string
+    adType: string | null
+    originalHeadline?: string
+    targetAudience?: string
+    objective?: string
 }
 
-const CAUSE_STRATEGY_MAP: Record<string, Strategy[]> = {
-    'Creative Fatigue': [
-        { type: 'HEADLINE', template: 'Try a completely new angle: lead with a benefit your audience hasn\'t seen yet', rationale: 'CTR slope is negative — audience has seen the current hook too many times' },
-        { type: 'HEADLINE', template: 'Add urgency: "Last chance" or "Limited availability" framing to re-engage', rationale: 'Engagement volatility suggests declining attention — urgency can recapture interest' },
-        { type: 'HEADLINE', template: 'Flip the perspective: address a pain point instead of promoting a feature', rationale: 'Creative fatigue responds well to emotional reframing — pain > gain in saturated audiences' },
-        { type: 'CTA', template: 'Replace generic CTA with action-specific language: "Get My [Result]" instead of "Learn More"', rationale: 'Specific CTAs outperform generic ones when engagement is dropping' },
-        { type: 'CTA', template: 'Add social proof near CTA: "Join 10,000+ users" or "Rated 4.8/5"', rationale: 'Social proof reduces friction when audience trust is declining due to ad fatigue' },
-        { type: 'REFRAME', template: 'Rewrite the emotional hook: shift from aspiration to fear-of-missing-out', rationale: 'Memory patterns show FOMO-based hooks perform well for fatigued creative' },
-    ],
+// ─── Fallback Strategies ────────────────────────────────
 
-    'Budget Instability': [
-        { type: 'CTA', template: 'Short-term aggressive CTA: "Act Now — Offer Ends [Date]" with clear deadline', rationale: 'High burn rate requires quick conversions — urgency CTAs maximize remaining budget' },
-        { type: 'CTA', template: 'Scarcity-based CTA: "Only [X] spots left" to increase conversion pressure', rationale: 'Budget risk is HIGH — scarcity framing can improve ROAS before budget exhaustion' },
-        { type: 'STRUCTURAL', template: 'Shorten the ad copy to reduce scroll-past rate. Lead with the strongest value prop in the first line', rationale: 'With limited budget runway, every impression must convert faster — shorter copy reduces bounce' },
-        { type: 'HEADLINE', template: 'Lead with price/offer: make the deal immediately visible to maximize conversion per impression', rationale: 'Financial risk signals suggest optimizing for immediate conversion over brand awareness' },
-    ],
-
-    'Audience Saturation': [
-        { type: 'HEADLINE', template: 'Add specificity: name the exact problem your product solves for this audience segment', rationale: 'Audience saturation means broad messaging is failing — specificity re-engages niche segments' },
-        { type: 'HEADLINE', template: 'Clarify the target: "For [specific role/persona] who struggle with [specific problem]"', rationale: 'Impression decay rate is high — the current targeting may be too broad' },
-        { type: 'REFRAME', template: 'Add a storytelling element: "I was spending 3 hours a day on [task] until I found this"', rationale: 'Narrative ads perform better than feature-based ads in saturated audiences' },
-        { type: 'CTA', template: 'Personalized CTA: "See how it works for [your industry]" with dynamic content', rationale: 'Personalization improves engagement when generic messaging has plateaued' },
-    ],
-
-    'Weak Emotional Resonance': [
-        { type: 'REFRAME', template: 'Reframe from logic to emotion: replace stats with a relatable scenario', rationale: 'Engagement signals suggest the audience isn\'t connecting emotionally with current copy' },
-        { type: 'HEADLINE', template: 'Lead with the emotional outcome: "Finally feel confident about [result]"', rationale: 'Emotional hooks outperform logical ones when engagement volatility is high' },
-        { type: 'STRUCTURAL', template: 'Add a before/after contrast: show the transformation your product enables', rationale: 'Contrast-based copy increases perceived value and emotional engagement' },
-        { type: 'CTA', template: 'Emotion-driven CTA: "Start my transformation" instead of "Sign up"', rationale: 'Aligning CTA with emotional framing improves click consistency' },
-    ],
-}
-
-// Fallback for unknown causes
-const DEFAULT_STRATEGIES: Strategy[] = [
-    { type: 'HEADLINE', template: 'Test a new angle: rewrite the headline with a different value proposition', rationale: 'General performance decline — testing new messaging may identify what resonates' },
-    { type: 'CTA', template: 'Strengthen the CTA: make it more specific and action-oriented', rationale: 'When root cause is unclear, CTA optimization is the safest starting point' },
-    { type: 'REFRAME', template: 'Simplify the message: reduce the ad to one clear benefit and one clear action', rationale: 'Simplification often improves performance when multiple signals are declining' },
-]
+const FALLBACK_STRATEGIES = [
+    { type: 'HEADLINE', text: 'Test a new angle: rewrite the headline with a different value proposition', rationale: 'General performance decline — testing new messaging may identify what resonates' },
+    { type: 'CTA', text: 'Strengthen the CTA: make it more specific and action-oriented', rationale: 'When root cause is unclear, CTA optimization is the safest starting point' },
+    { type: 'REFRAME', text: 'Simplify the message: reduce the ad to one clear benefit and one clear action', rationale: 'Simplification often improves performance when multiple signals are declining' },
+] as const
 
 // ─── Signal Context Builder ─────────────────────────────
 
@@ -84,27 +47,113 @@ function buildSignalContext(signal: SignalProfileInput): string {
 
 // ─── Main Generator ─────────────────────────────────────
 
-export function generateCreativeInterventions(
+export async function generateCreativeInterventions(
     synthesizer: SynthesizerOutput,
     signal: SignalProfileInput,
     collaboration: CollaborationInput | null,
-): CreativeSuggestionInput[] {
+    campaignContext: CampaignContext
+): Promise<CreativeSuggestionInput[]> {
     const { primaryCause, confidence } = synthesizer
-    const strategies = CAUSE_STRATEGY_MAP[primaryCause] ?? DEFAULT_STRATEGIES
     const signalContext = buildSignalContext(signal)
 
-    // If user prefers CONCISE, limit to top 3 suggestions
-    const maxSuggestions = (collaboration?.verbosityPreference === 'CONCISE') ? 3 : strategies.length
+    const maxSuggestions = (collaboration?.verbosityPreference === 'CONCISE') ? 3 : 5
 
-    const suggestions: CreativeSuggestionInput[] = strategies
-        .slice(0, maxSuggestions)
-        .map((strategy, index) => ({
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!apiKey) {
+        console.warn('[Creative Engine] No GEMINI_API_KEY found. Falling back to static strategies.')
+        return FALLBACK_STRATEGIES.slice(0, maxSuggestions).map((strategy, index) => ({
             primaryCause,
             suggestionType: strategy.type,
-            content: strategy.template,
-            explanation: `Generated because: ${signalContext}. ${strategy.rationale}`,
+            content: strategy.text,
+            explanation: `Generated via fallback because API key is missing. ${strategy.rationale}`,
             confidenceImpact: Math.round(confidence * (1 - index * 0.05) * 100) / 100,
         }))
+    }
 
-    return suggestions
+    const prompt = `You are an expert ad creative strategist.
+
+Campaign context:
+- Platform: ${campaignContext.platform}
+- Ad format: ${campaignContext.adType || 'Standard Ad'}
+- Primary issue diagnosed: ${primaryCause}
+- Signal health context: ${signalContext}
+- Recommended system action: ${synthesizer.recommendedAction}
+- Severity: ${synthesizer.severity}
+${campaignContext.originalHeadline ? `- Current headline/copy: "${campaignContext.originalHeadline}"` : ''}
+${campaignContext.targetAudience ? `- Target audience: ${campaignContext.targetAudience}` : ''}
+${campaignContext.objective ? `- Campaign objective: ${campaignContext.objective}` : ''}
+
+Generate ${maxSuggestions} specific, ready-to-use ad creative recommendations to solve this specific failure state. 
+Be highly specific and provide exact copy to use.
+
+Return JSON only, following this exact schema:
+{
+  "recommendations": [
+    {
+      "type": "HEADLINE|CTA|REFRAME|STRUCTURAL",
+      "text": "the exact new headline or copy to use",
+      "rationale": "one sentence explaining why this solves the primary issue",
+      "priority": 1
+    }
+  ]
+}`
+
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    temperature: 0.7
+                }
+            })
+        })
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            throw new Error(`Gemini API error ${response.status}: ${errorText}`)
+        }
+
+        const data = await response.json()
+        const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text
+        
+        if (!textContent) {
+            throw new Error('Invalid response structure from Gemini API')
+        }
+
+        // Clean any potential markdown wrapping (though responseMimeType should prevent this)
+        const cleanJson = textContent.replace(/```json/g, '').replace(/```/g, '').trim()
+        const parsed = JSON.parse(cleanJson) as {
+            recommendations: Array<{
+                type: 'HEADLINE' | 'CTA' | 'REFRAME' | 'STRUCTURAL'
+                text: string
+                rationale: string
+                priority: number
+            }>
+        }
+
+        return parsed.recommendations.map((rec, index) => ({
+            primaryCause,
+            suggestionType: ['HEADLINE', 'CTA', 'REFRAME', 'STRUCTURAL'].includes(rec.type) ? rec.type : 'HEADLINE',
+            content: rec.text,
+            explanation: rec.rationale,
+            // Degrade confidence slightly for lower priority items
+            confidenceImpact: Math.max(0.1, Math.round(confidence * (1 - index * 0.05) * 100) / 100),
+        }))
+
+    } catch (error) {
+        console.error('[Creative Engine] LLM generation failed, falling back:', error)
+        
+        return FALLBACK_STRATEGIES.slice(0, maxSuggestions).map((strategy, index) => ({
+            primaryCause,
+            suggestionType: strategy.type,
+            content: strategy.text,
+            explanation: `Generated via fallback due to API failure. ${strategy.rationale}`,
+            confidenceImpact: Math.round(confidence * (1 - index * 0.05) * 100) / 100,
+        }))
+    }
 }

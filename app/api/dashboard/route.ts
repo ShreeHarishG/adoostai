@@ -14,8 +14,12 @@ export async function GET() {
                     orderBy: { createdAt: 'desc' },
                     take: 1
                 },
-                decisions: {
+                 decisions: {
                     orderBy: { createdAt: 'desc' }
+                },
+                forecastLogs: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 1
                 }
             },
             orderBy: { updatedAt: 'desc' }
@@ -55,10 +59,22 @@ export async function GET() {
             ? (overrideCount / totalDecisions) * 100
             : 0
 
+        // Calculate estimated spend protected from fatigue waste
+        let estimatedSpendProtected = 0
+        for (const c of campaignsWithRuns) {
+            const latestRun = c.analysisRuns[0]
+            if (latestRun.severityLevel === 'CRITICAL' || latestRun.severityLevel === 'HIGH') {
+                const burnRate = c.forecastLogs?.[0]?.projectedBurnRate || 0
+                const msSinceDetection = Date.now() - new Date(latestRun.createdAt).getTime()
+                const daysSinceDetection = Math.max(1, msSinceDetection / (1000 * 60 * 60 * 24))
+                estimatedSpendProtected += burnRate * daysSinceDetection
+            }
+        }
+
         // Build campaign table rows
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const campaignRows = campaigns.map((c: any) => {
+        const campaignRows = campaigns.map(c => {
             const latestRun = c.analysisRuns?.[0] ?? null
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { analysisRuns, decisions, ...campaignData } = c
             return {
                 ...campaignData,
@@ -84,6 +100,7 @@ export async function GET() {
                 severityPercent: Math.round(severityPercent),
                 overrideRate: Math.round(overrideRate),
                 campaignsWithRuns: campaignsWithRuns.length,
+                estimatedSpendProtected: Math.round(estimatedSpendProtected),
             },
             campaigns: campaignRows
         })
