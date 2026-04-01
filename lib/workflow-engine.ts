@@ -9,6 +9,7 @@ import { CollaborationInput, SignalProfileInput } from '@/core/reasoning/types'
 import { computeHistoricalBounds, normalizeSignals } from '@/core/normalization'
 import { findSimilarCampaigns } from '@/core/memory-engine'
 import { generateCreativeInterventions } from '@/core/creative-engine'
+import { eventBus } from '@/lib/event-bus'
 
 // ─── Data Loading Boundary ─────────────────────────────
 
@@ -40,14 +41,24 @@ async function loadWorkflowContext(campaignId: string) {
 // ─── Logging Helper ────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createLogPayload(campaignId: string, stepName: string, data: any) {
-    return prisma.workflowLog.create({
+async function createLogPayload(campaignId: string, step: string, payload: unknown) {
+    const payloadStr = typeof payload === 'string' ? payload : JSON.stringify(payload)
+    const log = await prisma.workflowLog.create({
         data: {
             campaignId,
-            step: stepName,
-            payload: JSON.stringify(data),
+            step,
+            payload: payloadStr,
         }
     });
+    
+    // Broadcast instantly to active UI streams
+    eventBus.emit(`workflow-${campaignId}`, {
+         timestamp: log.createdAt,
+         step: log.step,
+         payload: payload
+    })
+    
+    return log
 }
 
 // ─── n8n Autonomous Action Webhook ─────────────────────
@@ -61,9 +72,19 @@ async function triggerN8nAutomation(payload: {
     estimatedWastedSpend: number
     campaignUrl: string
 }) {
-    const webhookUrl = process.env.N8N_WEBHOOK_URL
-    if (!webhookUrl) return
+    // TEMPORARY: Bypassing the severity filter so we can test the webhook
+    // if (payload.severity !== 'CRITICAL') {
+    //     console.log(`[n8n] Automation skipped: Severity is ${payload.severity} (Requires CRITICAL)`)
+    //     return
+    // }
 
+    const webhookUrl = process.env.N8N_WEBHOOK_URL
+    if (!webhookUrl) {
+        console.log('[n8n] DEBUG TRIGGER: Webhook would have fired, but N8N_WEBHOOK_URL is not set.', JSON.stringify(payload, null, 2))
+        return
+    }
+
+    console.log(`[n8n] Triggering Webhook for campaign ${payload.campaignId}...`)
     await fetch(webhookUrl, {
         method: 'POST',
         headers: {

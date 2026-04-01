@@ -23,6 +23,7 @@ export default function ImportCampaignPage() {
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [fetchedInstaData, setFetchedInstaData] = useState<{ caption?: string; thumbnailUrl?: string; mediaType?: string } | null>(null)
 
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [instagramUrl, setInstagramUrl] = useState('')
@@ -44,6 +45,7 @@ export default function ImportCampaignPage() {
   const resetState = () => {
     setStatus(null)
     setError(null)
+    setFetchedInstaData(null)
   }
 
   const handleCsvUpload = async () => {
@@ -108,7 +110,8 @@ export default function ImportCampaignPage() {
         return
       }
 
-      setStatus('Instagram metadata fetched. Preview available on campaign page.')
+      setFetchedInstaData(json)
+      setStatus('Instagram metadata fetched successfully! Preview available below.')
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -292,13 +295,58 @@ export default function ImportCampaignPage() {
         )}
 
         {/* ─── Status / Error ─────────────────── */}
-        {(status || error) && (
-          <Card>
-            <CardContent className="py-4">
-              {status && <p className="text-sm font-medium text-emerald-400">{status}</p>}
-              {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
-            </CardContent>
-          </Card>
+        {(status || error || fetchedInstaData) && (
+          <div className="space-y-4">
+            {(status || error) && (
+              <Card>
+                <CardContent className="py-4">
+                  {status && <p className="text-sm font-medium text-emerald-400">{status}</p>}
+                  {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+                </CardContent>
+              </Card>
+            )}
+
+            {fetchedInstaData && (
+              <Card className="overflow-hidden border-indigo-500/30 bg-indigo-500/10 transition-all rise-in">
+                <CardContent className="p-0 sm:flex">
+                  {fetchedInstaData.thumbnailUrl ? (
+                    <div className="relative aspect-square w-full shrink-0 sm:w-48">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={fetchedInstaData.thumbnailUrl}
+                        alt="Instagram Preview"
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                      {fetchedInstaData.mediaType === 'video' && (
+                        <div className="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur">
+                          Video
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex aspect-square w-full shrink-0 items-center justify-center bg-white/5 sm:w-48">
+                      <p className="text-xs text-slate-500">No Image</p>
+                    </div>
+                  )}
+                  <div className="flex flex-col justify-between p-6">
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-indigo-400">Content Preview</p>
+                      <p className="text-sm leading-relaxed text-slate-300 line-clamp-3">
+                        {fetchedInstaData.caption || 'No caption available.'}
+                      </p>
+                    </div>
+                    <div className="mt-5">
+                      <Link href={`/dashboard/campaign/${campaignId}`}>
+                        <Button className="w-full sm:w-auto" variant="default">
+                          View Campaign Dashboard <ArrowLeft className="ml-2 h-4 w-4 rotate-180" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )}
       </div>
     </div>

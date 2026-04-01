@@ -198,7 +198,11 @@ export default function Home() {
           </h1>
           <div className="mt-5 max-w-xl space-y-3 text-sm leading-relaxed text-white/80 sm:text-base">
             <p><span className="font-semibold text-white">The problem:</span> Marketers running paid ads lose 25–40% of their budget to fatigued creatives. CTR drops on day 3. They notice on day 8. The money is already gone.</p>
-            <p><span className="font-semibold text-white">What AdBoostAI does:</span> It watches every campaign signal in real-time, runs a structured AI debate between four specialist agents, and either alerts the human or acts autonomously &mdash; before the budget is wasted.</p>
+            <p><span className="font-semibold text-white">What AdBoostAI does:</span> It watches every campaign signal in real-time, runs a structured AI debate between four specialist agents, and either alerts the human or acts autonomously &mdash; before the budget is wasted. 
+              {platformStats?.spendProtected ? (
+                <span className="ml-1 font-semibold text-emerald-400">Over ${platformStats.spendProtected.toLocaleString()} in wasted spend protected to date.</span>
+              ) : null}
+            </p>
           </div>
           <div className="mt-7 flex flex-wrap gap-3">
             <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-lg transition-transform hover:scale-[1.02]">

@@ -9,6 +9,7 @@ const navLinks = [
   { href: '/', label: 'Analyze' },
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/dashboard/import', label: 'Import' },
+  { href: '/architecture', label: 'Architecture' },
   { href: '/security', label: 'Security' },
 ]
 

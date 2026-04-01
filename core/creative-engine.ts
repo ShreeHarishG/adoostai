@@ -126,7 +126,15 @@ Return JSON only, following this exact schema:
         }
 
         // Clean any potential markdown wrapping (though responseMimeType should prevent this)
-        const cleanJson = textContent.replace(/```json/g, '').replace(/```/g, '').trim()
+        let cleanJson = textContent.replace(/```json/g, '').replace(/```/g, '').trim()
+        
+        // Extract just the JSON object block to handle edge cases where Gemini adds conversational text
+        const firstBrace = cleanJson.indexOf('{')
+        const lastBrace = cleanJson.lastIndexOf('}')
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+             cleanJson = cleanJson.substring(firstBrace, lastBrace + 1)
+        }
+
         const parsed = JSON.parse(cleanJson) as {
             recommendations: Array<{
                 type: 'HEADLINE' | 'CTA' | 'REFRAME' | 'STRUCTURAL'
@@ -134,6 +142,10 @@ Return JSON only, following this exact schema:
                 rationale: string
                 priority: number
             }>
+        }
+
+        if (!parsed.recommendations || !Array.isArray(parsed.recommendations)) {
+            throw new Error('Invalid response structure: expected recommendations array')
         }
 
         return parsed.recommendations.map((rec, index) => ({

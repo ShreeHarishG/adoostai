@@ -146,6 +146,16 @@ export default function ArchitecturePage() {
       <section className="surface-card p-6">
         <h2 className="text-lg font-bold text-white">Data Flow Pipeline</h2>
         <p className="mt-1 text-sm text-slate-400">Visual representation of how data moves through the system.</p>
+
+        <div className="my-8 flex justify-center rounded-xl bg-white/[0.02] p-4 sm:p-8">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img 
+            src="/adboostai_full_platform.svg" 
+            alt="AdBoostAI Platform Architecture Diagram" 
+            className="h-auto w-full max-w-4xl object-contain drop-shadow-2xl"
+          />
+        </div>
+
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           {FLOW_CONNECTIONS.map((conn, i) => (
             <div key={i} className="flex items-center gap-2">

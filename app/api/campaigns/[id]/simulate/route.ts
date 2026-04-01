@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth'
 
@@ -52,11 +52,11 @@ export async function POST(
     const durationDays = Math.max(1, rawMetrics.durationDays ?? 14)
     const baseDailySpend = spent > 0 ? spent / durationDays : 100
 
-    const baseBudget = campaign.totalBudget ?? Math.max(spent * 1.5, 500)
+    const baseBudget = (campaign.totalBudget && campaign.totalBudget > 0) ? campaign.totalBudget : Math.max(spent * 1.5, 500)
     const remaining = Math.max(0, baseBudget - spent)
 
     const latestForecast = campaign.forecastLogs[0]
-    const forecastBurn = latestForecast?.projectedBurnRate ?? baseDailySpend
+    const forecastBurn = (latestForecast?.projectedBurnRate && latestForecast.projectedBurnRate > 0) ? latestForecast.projectedBurnRate : baseDailySpend
     const baselineDaysToExhaustion = forecastBurn > 0 ? remaining / forecastBurn : null
 
     let simulatedBudget = baseBudget
