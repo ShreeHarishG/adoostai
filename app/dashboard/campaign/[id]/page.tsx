@@ -552,6 +552,16 @@ export default function CampaignDetailPage() {
     }
   }
 
+  const handleTestWebhook = async () => {
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/test-webhook`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed to trigger webhook')
+      alert('Webhook triggered successfully!')
+    } catch(err) {
+      alert(`n8n Error: ${(err as Error).message}`)
+    }
+  }
+
   // ─── Loading / Error States ─────────────────────────────
 
   if (loading) {
@@ -593,9 +603,17 @@ export default function CampaignDetailPage() {
             <h1 className="mt-3 text-3xl font-bold">{data.campaign.platform.toUpperCase()} Campaign Intelligence</h1>
             <p className="mt-2 text-sm text-white/80">Health score, explainability timeline, live debate, and ranked actions.</p>
           </div>
-          <div className={`rounded-2xl border px-5 py-3 text-center ${getHealthTone(healthScore)}`}>
-            <p className="text-xs font-semibold uppercase tracking-widest">Health</p>
-            <p className="text-3xl font-bold">{healthScore}</p>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleTestWebhook}
+              className="inline-flex items-center gap-2 rounded-lg border border-orange-500/30 bg-orange-500/10 px-4 py-2 text-sm font-semibold text-orange-400 backdrop-blur transition-colors hover:bg-orange-500/20"
+            >
+              <Zap className="h-4 w-4" /> Test n8n Webhook
+            </button>
+            <div className={`rounded-2xl border px-5 py-3 text-center ${getHealthTone(healthScore)}`}>
+              <p className="text-xs font-semibold uppercase tracking-widest">Health</p>
+              <p className="text-3xl font-bold">{healthScore}</p>
+            </div>
           </div>
         </div>
       </section>
