@@ -29,10 +29,7 @@ export interface NormalizedSignals {
 
 // ─── Core Math ──────────────────────────────────────────
 
-/**
- * Min-Max normalize a value to [-1, 1].
- * Returns 0 if min === max (no variance).
- */
+
 export function minMaxNormalize(value: number, min: number, max: number): number {
     if (max === min) return 0
     return ((value - min) / (max - min)) * 2 - 1
